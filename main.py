@@ -4,7 +4,8 @@ from vosk import Model, KaldiRecognizer
 
 def main():
     # Model setting
-    model_path = "/path/to/vosk-model"  # Update the model path
+    # model_path = "models/vosk-model-en-us-0.22-lgraph"
+    model_path = "models/vosk-model-en-us-0.22-lgraph"
     if not os.path.exists(model_path):
         print("Model not found. Please download the model and make the path.")
         return
@@ -13,7 +14,7 @@ def main():
     recognizer = KaldiRecognizer(model, 16000)
 
     # Read audio file
-    audio_file_path = "/path/to/audio/file.wav"  # Update the audio file path
+    audio_file_path = "mine.wav"  # Update the audio file path
     if not os.path.exists(audio_file_path):
         print("Audio file not found. Please check the path.")
         return
