@@ -16,10 +16,10 @@ class VoiceRecorder:
         self.audio_data = []
         self.is_recording = False
         self.pressed_keys = set()
-        # self.model = whisper.load_model("tiny.en")
-        self.model = whisper.load_model("tiny.en" ,device="cpu")
-        # self.model = whisper.load_model("base.en")
-        # self.model = whisper.load_model("base.fa")
+        # self.model = whisper.load_model("tiny")
+        # self.model = whisper.load_model("tiny.en" ,device="cpu")
+        # self.model = whisper.load_model("base",device="cpu")
+        self.model = whisper.load_model("base.en")
 
     def select_microphone(self):
         devices = sd.query_devices()
@@ -27,7 +27,8 @@ class VoiceRecorder:
         print("Available input devices:\n")
         for idx, dev in enumerate(inputs):
             print(f"{idx}: {dev['name']}")
-        index = int(input("\nSelect microphone index: "))
+        # index = int(input("\nSelect microphone index: "))
+        index = 0
         self.device = inputs[index]['name']
 
     def _record_callback(self, indata, frames, time, status):
@@ -71,6 +72,7 @@ class VoiceRecorder:
                 wf.writeframes(all_data.tobytes())
             print("Transcribing...")
             result = self.model.transcribe(temp.name)
+            # result = self.model.transcribe(temp.name, language="fa", fp16=False, verbose=True)
             print("\n--- Transcription ---\n")
             print(result["text"])
             return result["text"]
