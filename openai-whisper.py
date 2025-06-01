@@ -3,102 +3,123 @@ import numpy as np
 import wave
 from pynput import keyboard
 import whisper
+import tempfile
+import os
 
-# Configuration
-FILENAME = "recorded.wav"
-SAMPLERATE = 16000
-CHANNELS = 1
-DTYPE = 'int16'
+class VoiceRecorder:
+    def __init__(self, samplerate=16000, channels=1, dtype='int16'):
+        self.samplerate = samplerate
+        self.channels = channels
+        self.dtype = dtype
+        self.device = None
+        self.stream = None
+        self.audio_data = []
+        self.is_recording = False
+        self.pressed_keys = set()
+        # self.model = whisper.load_model("tiny.en")
+        self.model = whisper.load_model("tiny.en" ,device="cpu")
+        # self.model = whisper.load_model("base.en")
+        # self.model = whisper.load_model("base.fa")
 
-# State
-is_recording = [False]
-audio_data = []
-stream = None
-pressed_keys = set()
+    def select_microphone(self):
+        devices = sd.query_devices()
+        inputs = [dev for dev in devices if dev['max_input_channels'] > 0]
+        print("Available input devices:\n")
+        for idx, dev in enumerate(inputs):
+            print(f"{idx}: {dev['name']}")
+        index = int(input("\nSelect microphone index: "))
+        self.device = inputs[index]['name']
 
-def list_microphones():
-    devices = sd.query_devices()
-    inputs = [dev for dev in devices if dev['max_input_channels'] > 0]
-    print("Available input devices:\n")
-    for idx, dev in enumerate(inputs):
-        print(f"{idx}: {dev['name']}")
-    index = int(input("\nSelect microphone index: "))
-    return inputs[index]['name']
+    def _record_callback(self, indata, frames, time, status):
+        if self.is_recording:
+            self.audio_data.append(indata.copy())
 
-def record_callback(indata, frames, time, status):
-    if is_recording[0]:
-        audio_data.append(indata.copy())
+    def start_stream(self):
+        self.stream = sd.InputStream(
+            device=self.device,
+            samplerate=self.samplerate,
+            channels=self.channels,
+            dtype=self.dtype,
+            callback=self._record_callback
+        )
+        self.stream.start()
+        print(f"\nRecording with: {self.device}")
+        print("Press Ctrl + B to start, press F to finish.")
 
-def start_stream(device_name):
-    global stream
-    stream = sd.InputStream(
-        device=device_name,
-        samplerate=SAMPLERATE,
-        channels=CHANNELS,
-        dtype=DTYPE,
-        callback=record_callback
-    )
-    stream.start()
-    print(f"\nRecording with: {device_name}")
-    print("Press Ctrl + B to start recording")
-    print("Press F to stop recording")
+    def stop_stream(self):
+        if self.stream:
+            self.stream.stop()
+            self.stream.close()
 
-def stop_stream():
-    if stream:
-        stream.stop()
-        stream.close()
+    def save_audio(self, filename):
+        all_data = np.concatenate(self.audio_data, axis=0)
+        with wave.open(filename, 'wb') as wf:
+            wf.setnchannels(self.channels)
+            wf.setsampwidth(2)  # 16-bit = 2 bytes
+            wf.setframerate(self.samplerate)
+            wf.writeframes(all_data.tobytes())
+        print(f"Audio saved to {filename}")
+        return filename
 
-def save_audio(filename):
-    all_data = np.concatenate(audio_data, axis=0)
-    with wave.open(filename, 'wb') as wf:
-        wf.setnchannels(CHANNELS)
-        wf.setsampwidth(2)
-        wf.setframerate(SAMPLERATE)
-        wf.writeframes(all_data.tobytes())
+    def transcribe_audio(self, save=False):
+        all_data = np.concatenate(self.audio_data, axis=0)
+        with tempfile.NamedTemporaryFile(delete=not save, suffix=".wav") as temp:
+            with wave.open(temp.name, 'wb') as wf:
+                wf.setnchannels(self.channels)
+                wf.setsampwidth(2)
+                wf.setframerate(self.samplerate)
+                wf.writeframes(all_data.tobytes())
+            print("Transcribing...")
+            result = self.model.transcribe(temp.name)
+            print("\n--- Transcription ---\n")
+            print(result["text"])
+            return result["text"]
 
-def transcribe_with_whisper(filename):
-    print("\nTranscribing with Whisper...")
-    model = whisper.load_model("tiny.en")
-    # model = whisper.load_model("base.en")
-    result = model.transcribe(filename)
-    print("\n--- Transcription ---")
-    print(result["text"])
+    def handle_keypress(self, key):
+        try:
+            if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+                self.pressed_keys.add('ctrl')
+            elif key.char and key.char.lower() == 'b':
+                self.pressed_keys.add('b')
+            elif key.char and key.char.lower() == 'f':
+                if self.is_recording:
+                    print("Recording stopped.")
+                    self.is_recording = False
+                    return False  # Stop listener
 
-def on_press(key):
-    try:
-        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
-            pressed_keys.add('ctrl')
-        elif key.char and key.char.lower() == 'b':
-            pressed_keys.add('b')
-        elif key.char and key.char.lower() == 'f':
-            if is_recording[0]:
-                print("Recording stopped.")
-                is_recording[0] = False
-                return False  # Stop listener
+            if 'ctrl' in self.pressed_keys and 'b' in self.pressed_keys and not self.is_recording:
+                print("Recording started.")
+                self.is_recording = True
 
-        if 'ctrl' in pressed_keys and 'b' in pressed_keys and not is_recording[0]:
-            print("Recording started.")
-            is_recording[0] = True
+        except AttributeError:
+            pass
 
-    except AttributeError:
-        pass  # Ignore special keys without .char
+    def handle_keyrelease(self, key):
+        try:
+            if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
+                self.pressed_keys.discard('ctrl')
+            elif key.char and key.char.lower() == 'b':
+                self.pressed_keys.discard('b')
+        except AttributeError:
+            pass
 
-def on_release(key):
-    try:
-        if key == keyboard.Key.ctrl_l or key == keyboard.Key.ctrl_r:
-            pressed_keys.discard('ctrl')
-        elif key.char and key.char.lower() == 'b':
-            pressed_keys.discard('b')
-    except AttributeError:
-        pass
+    def run(self):
+        self.select_microphone()
+        self.start_stream()
+
+        with keyboard.Listener(on_press=self.handle_keypress, on_release=self.handle_keyrelease) as listener:
+            listener.join()
+
+        self.stop_stream()
+
+        # Ask whether to save audio
+        # should_save = input("Do you want to save the audio file? (y/N): ").strip().lower() == 'y'
+        # if should_save:
+        #     filename = input("Enter filename (e.g., 'output.wav'): ").strip()
+        #     self.save_audio(filename)
+        # self.transcribe_audio(save=should_save)
+        self.transcribe_audio()
 
 if __name__ == "__main__":
-    selected_device = list_microphones()
-    start_stream(selected_device)
-
-    with keyboard.Listener(on_press=on_press, on_release=on_release) as listener:
-        listener.join()
-
-    stop_stream()
-    save_audio(FILENAME)
-    transcribe_with_whisper(FILENAME)
+    vr = VoiceRecorder()
+    vr.run()
