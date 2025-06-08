@@ -395,7 +395,7 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
     
     # IMPORTANT: Replace this with the actual path to your local ggml model file
-    MODEL_PATH = "/home/flayo/Desktop/flayo -zone/whisper.cpp/models/ggml-base.en.bin"
+    MODEL_PATH = "/home/erfan/Desktop/Rag-zone/whisperacpp/whisper.cpp/models/ggml-base.en.bin"
     
     # Ask for model path if not provided as a constant
     if not os.path.isfile(MODEL_PATH):
