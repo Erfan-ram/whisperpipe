@@ -142,7 +142,7 @@ class WhisperCppStreamingTranscriber:
 
 def main():
     # IMPORTANT: Replace this with the actual path to your local ggml model file
-    MODEL_PATH = "/home/erfan/Desktop/Rag-zone/whisperacpp/whisper.cpp/models/ggml-base.en.bin"
+    MODEL_PATH = "/home/flayo/Desktop/flayo -zone/whisper.cpp/models/ggml-base.en.bin"
     
     # Ask for model path if not provided as a constant
     if MODEL_PATH == "/path/to/your/model/ggml-base.en.bin":
