@@ -4,6 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized for real-time LLM integration with advanced buffer management
+and enhanced sentence completion detection using [BLANK_AUDIO] markers
 """
 import numpy as np
 import pyaudio
@@ -71,6 +72,12 @@ class WhisperCppStreamingTranscriber:
         self.accumulated_text = ""  # Accumulated text for the LLM
         self.last_segment_end_time = 0
         
+        # New parameters for [BLANK_AUDIO] detection
+        self.blank_audio_counter = 0  # Count consecutive [BLANK_AUDIO] detections
+        self.blank_audio_threshold = 3  # Number of consecutive [BLANK_AUDIO] to trigger end of speech
+        self.is_speech_active = False  # Flag to track if speech is currently active
+        self.activation_words = ["hello", "hey", "hi", "okay", "start", "listen"]  # Words to trigger speech detection
+        
         # Threading and synchronization
         self.process_thread = None
         self.lock = threading.Lock()
@@ -109,12 +116,15 @@ class WhisperCppStreamingTranscriber:
         end_markers = ['.', '?', '!', '\n']
         return any(text.rstrip().endswith(marker) for marker in end_markers)
     
+    def _contains_activation_word(self, text):
+        """Check if text contains any activation words to start speech recognition"""
+        text_lower = text.lower()
+        return any(word in text_lower for word in self.activation_words)
+    
     def _process_audio(self):
         """Process audio in the background - optimized for real-time performance"""
         last_transcription_time = time.time()
-        last_sentence_time = time.time()
         processing_interval = 0.3  # Process every 300ms for low latency
-        sentence_timeout = 2.0  # Force update after 2 seconds of continuous speech
         
         while self.is_recording:
             try:
@@ -144,33 +154,54 @@ class WhisperCppStreamingTranscriber:
                     with self.lock:
                         buffer_copy = np.copy(self.rolling_buffer)
                     
-                    # Check if audio contains speech
+                    # Check if audio contains speech - use physical silence detection as a first filter
                     if self._is_silent(buffer_copy, self.silence_threshold):
-                        self.silence_counter += 1
-                        if self.silence_counter >= 10:  # After sustained silence, send accumulated text to LLM
-                            if self.accumulated_text and len(self.accumulated_text) > 5:  # If we have meaningful text
-                                self._send_to_llm(self.accumulated_text)
-                                self.accumulated_text = ""
-                            self.silence_counter = 0
-                            
                         time.sleep(0.05)  # Sleep slightly to reduce CPU
                         continue
-                    else:
-                        self.silence_counter = 0
                         
                     # Process with WhisperCpp
                     try:
                         # Process with WhisperCpp
                         segments = self.model.transcribe(buffer_copy)
                         
-                        # Extract text from segments
+                        # Extract text from segments and check for [BLANK_AUDIO]
                         new_text = []
-                        for segment in segments:
-                            if segment.text.strip():
-                                # Check if this segment is a continuation of previous text
-                                segment_text = segment.text.strip()
-                                new_text.append(segment_text)
+                        blank_audio_detected = False
                         
+                        for segment in segments:
+                            segment_text = segment.text.strip()
+                            
+                            if "[BLANK_AUDIO]" in segment_text:
+                                blank_audio_detected = True
+                                self.blank_audio_counter += 1
+                                print(f"[BLANK_AUDIO] detected ({self.blank_audio_counter}/{self.blank_audio_threshold})")
+                            elif segment_text:  # If we have actual text content
+                                if not self.is_speech_active:
+                                    # Check if we should activate speech detection
+                                    if self._contains_activation_word(segment_text):
+                                        print(f"\n[SPEECH ACTIVATED] Detected: '{segment_text}'")
+                                        self.is_speech_active = True
+                                        self.blank_audio_counter = 0
+                                        new_text.append(segment_text)
+                                else:
+                                    # In active speech mode, reset blank counter and collect text
+                                    self.blank_audio_counter = 0
+                                    new_text.append(segment_text)
+                        
+                        # Handle speech state based on [BLANK_AUDIO] detection
+                        if self.is_speech_active and self.blank_audio_counter >= self.blank_audio_threshold:
+                            print("\n[SPEECH ENDED] Multiple blank segments detected")
+                            
+                            # Process the complete sentence
+                            if self.accumulated_text and len(self.accumulated_text.strip()) > 5:
+                                self._send_to_llm(self.accumulated_text)
+                                self.accumulated_text = ""
+                            
+                            # Reset speech state
+                            self.is_speech_active = False
+                            self.blank_audio_counter = 0
+                        
+                        # Process any new text that was detected
                         if new_text:
                             full_text = " ".join(new_text)
                             
@@ -181,16 +212,16 @@ class WhisperCppStreamingTranscriber:
                                 print(f"\n[{time.strftime('%H:%M:%S')}] {full_text}")
                                 self.transcription_history.append(full_text)
                                 
-                                # Add to accumulated text for LLM
-                                self.accumulated_text += " " + full_text
-                                
-                                # Check if we should send to the LLM
-                                if self._detect_sentence_end(full_text) or (current_time - last_sentence_time > sentence_timeout):
-                                    # Only send meaningful accumulated text
-                                    if len(self.accumulated_text.strip()) > 10:
-                                        self._send_to_llm(self.accumulated_text)
-                                        self.accumulated_text = ""
-                                    last_sentence_time = current_time
+                                # Add to accumulated text for LLM if in speech active mode
+                                if self.is_speech_active:
+                                    self.accumulated_text += " " + full_text
+                                    
+                                    # Also check traditional sentence endings
+                                    if self._detect_sentence_end(full_text):
+                                        if len(self.accumulated_text.strip()) > 10:
+                                            print("\n[SENTENCE COMPLETED] Detected end punctuation")
+                                            self._send_to_llm(self.accumulated_text)
+                                            self.accumulated_text = ""
                                     
                     except Exception as e:
                         print(f"Error in transcription: {e}")
@@ -226,8 +257,9 @@ class WhisperCppStreamingTranscriber:
     def _send_to_llm(self, text):
         """Send completed text to LLM for processing"""
         # This is where you would integrate with your LLM Q&A system
-        print(f"\n[LLM INPUT]: {text.strip()}")
-        # Example: response = your_llm_model.generate_answer(text)
+        clean_text = text.strip()
+        print(f"\n[COMPLETE SENTENCE TO LLM]: {clean_text}")
+        # Example: response = your_llm_model.generate_answer(clean_text)
         # print(f"[LLM RESPONSE]: {response}")
     
     def start_streaming(self):
@@ -237,6 +269,8 @@ class WhisperCppStreamingTranscriber:
         self.audio_queue = queue.Queue()
         self.transcription_history.clear()
         self.accumulated_text = ""
+        self.blank_audio_counter = 0
+        self.is_speech_active = False
         
         # Open PyAudio stream
         try:
@@ -260,6 +294,7 @@ class WhisperCppStreamingTranscriber:
             self.process_thread.start()
             
             print("Listening... (Press 'q' to stop)")
+            print("Say an activation word like 'hello' or 'hey' to start recognizing speech")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -287,10 +322,10 @@ class WhisperCppStreamingTranscriber:
         # Process any remaining audio
         try:
             with self.lock:
-                if len(self.rolling_buffer) > 0:
+                if len(self.rolling_buffer) > 0 and self.is_speech_active:
                     segments = self.model.transcribe(self.rolling_buffer)
                     for segment in segments:
-                        if segment.text.strip():
+                        if segment.text.strip() and "[BLANK_AUDIO]" not in segment.text:
                             print(f"\nFinal segment: {segment.text.strip()}")
                             self.accumulated_text += " " + segment.text.strip()
         except Exception as e:
@@ -334,7 +369,6 @@ def main():
     
     # IMPORTANT: Replace this with the actual path to your local ggml model file
     MODEL_PATH = "/home/erfan/Desktop/Rag-zone/whisperacpp/whisper.cpp/models/ggml-base.en.bin"
-    # MODEL_PATH = "/home/flayo/Desktop/flayo -zone/whisper.cpp/models/ggml-base.en.bin"
     
     # Ask for model path if not provided as a constant
     if not os.path.isfile(MODEL_PATH):
