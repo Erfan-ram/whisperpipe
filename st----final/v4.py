@@ -122,7 +122,10 @@ class WhisperCppStreamingTranscriber:
     def _process_audio(self):
         """Process audio in the background - optimized for real-time performance with silence detection"""
         last_transcription_time = time.time()
-        processing_interval = 0.3  # Process every 300ms for low latency
+        
+        # Set processing interval for periodic transcription
+        processing_interval = 1
+        
         continuous_speech_buffer = np.array([], dtype=np.float32)  # Buffer for active speech
         
         while self.is_recording:
@@ -165,7 +168,7 @@ class WhisperCppStreamingTranscriber:
                         continuous_speech_buffer = np.append(continuous_speech_buffer, latest_audio)
                         
                         # Limit continuous buffer size
-                        max_continuous_buffer = self.RATE * 10  # 10 seconds max
+                        max_continuous_buffer = self.RATE * 100  # 100 seconds max
                         if len(continuous_speech_buffer) > max_continuous_buffer:
                             continuous_speech_buffer = continuous_speech_buffer[-max_continuous_buffer:]
                 
