@@ -3,7 +3,8 @@
 
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
-Optimized for real-time LLM integration with advanced buffer management
+Optimized for real-time LLM integration with sentence-based audio segmentation
+to reduce computational overhead and improve responsiveness
 """
 import numpy as np
 import pyaudio
@@ -62,7 +63,7 @@ class WhisperCppStreamingTranscriber:
         
         # Processing parameters
         self.audio_queue = queue.Queue()
-        self.rolling_buffer = np.array([], dtype=np.float32)
+        self.rolling_buffer = np.array([], dtype=np.float32)  # Used for silence detection
         self.is_recording = False
         self.transcription_history = deque(maxlen=10)  # Store last 10 transcriptions
         self.last_context = ""  # Store context from previous segments
@@ -70,6 +71,7 @@ class WhisperCppStreamingTranscriber:
         self.silence_counter = 0
         self.accumulated_text = ""  # Accumulated text for the LLM
         self.last_segment_end_time = 0
+        self.sentence_count = 0  # Track number of completed sentences
         
         # Threading and synchronization
         self.process_thread = None
@@ -105,16 +107,19 @@ class WhisperCppStreamingTranscriber:
         return np.abs(audio_data).mean() < threshold
     
     def _detect_sentence_end(self, text):
-        """Check if text appears to end a complete thought/sentence"""
-        end_markers = ['.', '?', '!', '\n']
-        return any(text.rstrip().endswith(marker) for marker in end_markers)
+        """Detect if text contains sentence-ending punctuation"""
+        sentence_endings = ['.', '?', '!', ',']
+        return any(ending in text.strip()[-3:] for ending in sentence_endings)
     
     def _process_audio(self):
-        """Process audio in the background - optimized for real-time performance"""
+        """Process audio in the background - optimized for real-time performance with sentence-based segmentation"""
         last_transcription_time = time.time()
         last_sentence_time = time.time()
         processing_interval = 0.3  # Process every 300ms for low latency
-        sentence_timeout = 2.0  # Force update after 2 seconds of continuous speech
+        sentence_timeout = 30.0  # Fallback timeout - force segmentation after 30 seconds
+        
+        # Sentence-based audio buffer - resets after each completed sentence
+        continuous_speech_buffer = np.array([], dtype=np.float32)
         
         while self.is_recording:
             try:
@@ -126,9 +131,11 @@ class WhisperCppStreamingTranscriber:
                     chunk = self.audio_queue.get(block=False)
                     with self.lock:
                         self.rolling_buffer = np.append(self.rolling_buffer, chunk)
+                        # Also add to sentence-based buffer for independent processing
+                        continuous_speech_buffer = np.append(continuous_speech_buffer, chunk)
                     chunk_count += 1
                 
-                # Maintain buffer size to prevent memory growth
+                # Maintain rolling buffer size to prevent memory growth (for silence detection)
                 with self.lock:
                     if len(self.rolling_buffer) > self.buffer_size:
                         # Keep buffer at fixed size, dropping oldest data
@@ -137,20 +144,29 @@ class WhisperCppStreamingTranscriber:
                 
                 # Determine if we should process (based on time or queue size)
                 current_time = time.time()
-                should_process = (current_time - last_transcription_time >= processing_interval) and len(self.rolling_buffer) > self.RATE * 0.5
+                should_process = (current_time - last_transcription_time >= processing_interval) and len(continuous_speech_buffer) > self.RATE * 0.5
+                
+                # Check for fallback timeout - force segmentation if no sentence detected for too long
+                timeout_reached = (current_time - last_sentence_time > sentence_timeout) and len(continuous_speech_buffer) > 0
                 
                 # Check if audio has enough speech content to process
-                if should_process and len(self.rolling_buffer) > 0:
-                    with self.lock:
-                        buffer_copy = np.copy(self.rolling_buffer)
+                if (should_process or timeout_reached) and len(continuous_speech_buffer) > 0:
+                    # Use continuous_speech_buffer for processing instead of rolling_buffer
+                    buffer_copy = np.copy(continuous_speech_buffer)
                     
                     # Check if audio contains speech
                     if self._is_silent(buffer_copy, self.silence_threshold):
                         self.silence_counter += 1
                         if self.silence_counter >= 10:  # After sustained silence, send accumulated text to LLM
                             if self.accumulated_text and len(self.accumulated_text) > 5:  # If we have meaningful text
+                                self.sentence_count += 1
+                                print(f"\n[SENTENCE COMPLETE #{self.sentence_count}] - Silence detected")
                                 self._send_to_llm(self.accumulated_text)
                                 self.accumulated_text = ""
+                                # Reset sentence buffer after processing
+                                continuous_speech_buffer = np.array([], dtype=np.float32)
+                                print(f"[BUFFER RESET] - Starting fresh after silence")
+                                last_sentence_time = current_time
                             self.silence_counter = 0
                             
                         time.sleep(0.05)  # Sleep slightly to reduce CPU
@@ -158,9 +174,9 @@ class WhisperCppStreamingTranscriber:
                     else:
                         self.silence_counter = 0
                         
-                    # Process with WhisperCpp
+                    # Process with WhisperCpp - using sentence-based buffer
                     try:
-                        # Process with WhisperCpp
+                        # Process with WhisperCpp using only the current sentence buffer
                         segments = self.model.transcribe(buffer_copy)
                         
                         # Extract text from segments
@@ -184,12 +200,19 @@ class WhisperCppStreamingTranscriber:
                                 # Add to accumulated text for LLM
                                 self.accumulated_text += " " + full_text
                                 
-                                # Check if we should send to the LLM
-                                if self._detect_sentence_end(full_text) or (current_time - last_sentence_time > sentence_timeout):
+                                # Check if we should send to the LLM (sentence end detected or timeout)
+                                sentence_detected = self._detect_sentence_end(full_text)
+                                if sentence_detected or timeout_reached:
                                     # Only send meaningful accumulated text
                                     if len(self.accumulated_text.strip()) > 10:
+                                        self.sentence_count += 1
+                                        completion_reason = 'Punctuation' if sentence_detected else 'Timeout'
+                                        print(f"\n[SENTENCE COMPLETE #{self.sentence_count}] - {completion_reason} detected")
                                         self._send_to_llm(self.accumulated_text)
                                         self.accumulated_text = ""
+                                        # Reset the continuous speech buffer for next sentence
+                                        continuous_speech_buffer = np.array([], dtype=np.float32)
+                                        print(f"[BUFFER RESET] - Starting fresh for next sentence")
                                     last_sentence_time = current_time
                                     
                     except Exception as e:
@@ -237,6 +260,7 @@ class WhisperCppStreamingTranscriber:
         self.audio_queue = queue.Queue()
         self.transcription_history.clear()
         self.accumulated_text = ""
+        self.sentence_count = 0  # Reset sentence counter
         
         # Open PyAudio stream
         try:
