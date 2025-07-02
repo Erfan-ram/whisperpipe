@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Added: Delayed sentence finalization - waits 5 seconds after punctuation before sending to LLM
+Fixed: Proper 5-second delay timer after punctuation detection
 """
 import numpy as np
 import pyaudio
@@ -70,14 +70,14 @@ class WhisperCppStreamingTranscriber:
         self.current_sentence_text = ""  # Accumulated text for current sentence
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
-        self.max_sentence_duration = 30.0  # Force segmentation after 30 seconds
+        self.max_sentence_duration = 60.0  # Increased to 60 seconds to prevent force segmentation interference
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
-        # NEW: Delayed finalization parameters
-        self.pending_finalization = False  # Flag if we're waiting to finalize
-        self.finalization_delay = 5.0     # Wait 5 seconds after punctuation
-        self.punctuation_detected_time = None  # When we detected punctuation
-        self.last_meaningful_speech_time = None  # Last time we heard real speech (not noise)
+        # FIXED: Delayed finalization parameters
+        self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
+        self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
+        self.punctuation_detected_time = None # When we detected punctuation
+        self.sentence_text_at_punctuation = ""  # Text when punctuation was detected
         
         # Fixed sentence detection patterns
         self.sentence_endings = ['.', '?', '!']
@@ -171,6 +171,23 @@ class WhisperCppStreamingTranscriber:
         # If nothing left after removing noise annotations, it's noise-only
         return len(cleaned) < 3
     
+    def _has_new_meaningful_content(self, current_text, previous_text):
+        """
+        Check if current text has new meaningful content compared to previous text
+        """
+        if not previous_text:
+            return bool(current_text and not self._is_noise_only_transcription(current_text))
+        
+        if not current_text:
+            return False
+        
+        # Remove noise annotations from both
+        current_clean = re.sub(r'\([^)]+\)', '', current_text).strip()
+        previous_clean = re.sub(r'\([^)]+\)', '', previous_text).strip()
+        
+        # Check if current text is meaningfully longer
+        return len(current_clean) > len(previous_clean) + 2  # At least 3 new characters
+    
     def _is_processing_indicator(self, text):
         """
         Check if text contains processing indicators that should NOT end a sentence
@@ -256,12 +273,15 @@ class WhisperCppStreamingTranscriber:
         duration = time.time() - self.sentence_start_time
         return duration > self.min_sentence_duration
     
-    def _should_finalize_pending_sentence(self):
+    def _should_finalize_after_delay(self):
         """
-        Check if we should finalize a sentence that's pending finalization
-        Returns True if delay period has passed and no new meaningful speech detected
+        Check if we should finalize after 5-second delay
+        Only returns True if:
+        1. We're waiting for continuation after punctuation
+        2. 5 seconds have passed
+        3. No new meaningful content was added
         """
-        if not self.pending_finalization or self.punctuation_detected_time is None:
+        if not self.waiting_for_continuation or self.punctuation_detected_time is None:
             return False
         
         current_time = time.time()
@@ -269,11 +289,13 @@ class WhisperCppStreamingTranscriber:
         
         # Check if delay period has passed
         if delay_elapsed >= self.finalization_delay:
-            # Check if we've had meaningful speech since punctuation was detected
-            if (self.last_meaningful_speech_time is None or 
-                self.last_meaningful_speech_time <= self.punctuation_detected_time):
-                print(f"[DELAYED FINALIZATION] {self.finalization_delay}s passed with no new speech")
+            # Check if sentence has grown meaningfully since punctuation was detected
+            if not self._has_new_meaningful_content(self.current_sentence_text, self.sentence_text_at_punctuation):
+                print(f"[TIMER EXPIRED] {self.finalization_delay}s passed with no new meaningful content")
                 return True
+            else:
+                print(f"[TIMER EXPIRED] But new content detected, continuing...")
+                self.waiting_for_continuation = False  # Reset waiting state
         
         return False
     
@@ -310,18 +332,19 @@ class WhisperCppStreamingTranscriber:
         self.current_sentence_buffer = np.array([], dtype=np.float32)
         self.current_sentence_text = ""
         self.sentence_start_time = None
-        self.pending_finalization = False
+        self.waiting_for_continuation = False
         self.punctuation_detected_time = None
+        self.sentence_text_at_punctuation = ""
     
     def _process_audio(self):
-        """Process audio with sentence-based segmentation and delayed finalization"""
+        """Process audio with sentence-based segmentation and proper delayed finalization"""
         while self.is_recording:
             try:
                 chunk_count = 0
                 start_time = time.time()
                 
-                # Check if we should finalize a pending sentence
-                if self._should_finalize_pending_sentence():
+                # Check if we should finalize after delay period
+                if self._should_finalize_after_delay():
                     self._finalize_sentence()
                 
                 # Collect audio chunks
@@ -364,7 +387,7 @@ class WhisperCppStreamingTranscriber:
                     if len(latest_audio) > 0:
                         self.current_sentence_buffer = np.append(self.current_sentence_buffer, latest_audio)
                         
-                        # Limit sentence buffer size (max 30 seconds)
+                        # Limit sentence buffer size (max 60 seconds)
                         max_sentence_buffer = int(self.RATE * self.max_sentence_duration)
                         if len(self.current_sentence_buffer) > max_sentence_buffer:
                             self.current_sentence_buffer = self.current_sentence_buffer[-max_sentence_buffer:]
@@ -389,8 +412,8 @@ class WhisperCppStreamingTranscriber:
                     len(self.current_sentence_buffer) > min_processing_buffer
                 )
                 
-                # Force segmentation if sentence is too long
-                should_force = self._should_force_segmentation()
+                # Force segmentation if sentence is too long (but only if not waiting for continuation)
+                should_force = self._should_force_segmentation() and not self.waiting_for_continuation
                 
                 if should_process or should_force:
                     if should_force:
@@ -415,7 +438,7 @@ class WhisperCppStreamingTranscriber:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with delayed finalization logic
+        Process a sentence segment with proper timer logic
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -443,17 +466,8 @@ class WhisperCppStreamingTranscriber:
             
             print(f"\n[TRANSCRIPTION] {full_transcript}")
             
-            # Check if this is meaningful speech (not just noise)
-            is_meaningful_speech = not self._is_noise_only_transcription(full_transcript)
-            
-            if is_meaningful_speech:
-                self.last_meaningful_speech_time = time.time()
-                
-                # If we had pending finalization, cancel it (user continued speaking)
-                if self.pending_finalization:
-                    print(f"[CANCELLING PENDING FINALIZATION] User continued speaking")
-                    self.pending_finalization = False
-                    self.punctuation_detected_time = None
+            # Store previous sentence text to check for meaningful changes
+            previous_sentence_text = self.current_sentence_text
             
             # Update current sentence text
             if self.current_sentence_text:
@@ -485,34 +499,44 @@ class WhisperCppStreamingTranscriber:
                     # Valid sentence start
                     self.current_sentence_text = full_transcript
             
+            # Check if we have meaningful new content since last check
+            has_new_content = self._has_new_meaningful_content(self.current_sentence_text, previous_sentence_text)
+            
+            # If we were waiting for continuation and got new meaningful content, cancel the timer
+            if self.waiting_for_continuation and has_new_content:
+                print(f"[TIMER CANCELLED] New meaningful content detected")
+                self.waiting_for_continuation = False
+                self.punctuation_detected_time = None
+                self.sentence_text_at_punctuation = ""
+            
             # Check for sentence ending
             is_sentence_end, is_pause = self._detect_sentence_end(self.current_sentence_text)
             
-            # NEW LOGIC: Handle delayed finalization
-            if is_sentence_end and self._can_segment() and is_meaningful_speech:
-                if not self.pending_finalization:
-                    # First time we see punctuation - start the delay timer
-                    self.pending_finalization = True
+            # Handle punctuation detection and timer logic
+            if is_sentence_end and self._can_segment() and not self._is_noise_only_transcription(full_transcript):
+                if not self.waiting_for_continuation:
+                    # Start waiting for continuation
+                    self.waiting_for_continuation = True
                     self.punctuation_detected_time = time.time()
+                    self.sentence_text_at_punctuation = self.current_sentence_text
                     print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s delay timer...")
-                # If already pending, just update the timer (user might have added more punctuation)
                 else:
+                    # Already waiting, update the timer if we have new punctuation
                     self.punctuation_detected_time = time.time()
+                    self.sentence_text_at_punctuation = self.current_sentence_text
                     print(f"[PUNCTUATION DETECTED] Resetting {self.finalization_delay}s delay timer...")
             
-            # Handle other finalization conditions (force/silence without delay)
+            # Handle immediate finalization for silence (only if no meaningful speech and not waiting)
             elif is_silence_triggered and self._can_segment() and not self._is_processing_indicator(self.current_sentence_text):
-                if not is_meaningful_speech:
-                    # Only noise detected during silence - finalize if we have pending
-                    if self.pending_finalization:
-                        print(f"[SILENCE + NOISE ONLY] Finalizing pending sentence")
+                if self._is_noise_only_transcription(full_transcript):
+                    # Only noise during silence - check if we should finalize
+                    if self.waiting_for_continuation:
+                        # Let the timer handle it
+                        pass
+                    elif self.current_sentence_text and len(self.current_sentence_text.strip()) > 3:
+                        # No timer active and we have content - finalize
+                        print(f"[SILENCE FINALIZATION] No timer active, finalizing current sentence")
                         self._finalize_sentence()
-                else:
-                    # Real speech during what we thought was silence - continue
-                    pass
-            elif self._should_force_segmentation():
-                print(f"[FORCE FINALIZATION] Time limit reached")
-                self._finalize_sentence()
             
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
@@ -532,9 +556,9 @@ class WhisperCppStreamingTranscriber:
         self.current_sentence_text = ""
         self.completed_sentences = []
         self.sentence_start_time = None
-        self.pending_finalization = False
+        self.waiting_for_continuation = False
         self.punctuation_detected_time = None
-        self.last_meaningful_speech_time = None
+        self.sentence_text_at_punctuation = ""
         self.audio_queue = queue.Queue()
         self.silence_frames = 0
         self.is_speech_active = False
@@ -561,10 +585,10 @@ class WhisperCppStreamingTranscriber:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with sentence-based segmentation and delayed finalization...")
+            print("Listening with sentence-based segmentation and FIXED delayed finalization...")
             print("Processing ALL speech immediately - no greeting required!")
             print("Preventing sentences from STARTING with noise annotations only!")
-            print("Will wait 5 seconds after punctuation before sending to LLM!")
+            print("Will wait 5 seconds after punctuation, cancel timer if new words detected!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -598,7 +622,7 @@ class WhisperCppStreamingTranscriber:
                 print(f"Error processing final segment: {e}")
         
         # Finalize any pending sentence
-        if self.pending_finalization and self.current_sentence_text:
+        if (self.waiting_for_continuation or self.current_sentence_text) and self.current_sentence_text:
             print("\n[FINALIZING PENDING SENTENCE]")
             self._finalize_sentence()
         
