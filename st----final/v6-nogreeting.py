@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Removed: greeting requirement - now processes all speech immediately
+Added: Filtering to prevent sentences from STARTING with noise annotations only
 """
 import numpy as np
 import pyaudio
@@ -83,10 +83,6 @@ class WhisperCppStreamingTranscriber:
         self.silence_frames_threshold = 25
         self.is_speech_active = False
         
-        # REMOVED: greeting detection - now processes all speech immediately
-        # self.has_detected_speech = False  # REMOVED
-        # self.greeting_keywords = ["hello", "hey", "hi", "ok", "okay"]  # REMOVED
-        
         # Processing state
         self.last_transcription_time = time.time()
         self.processing_interval = 1.0
@@ -123,10 +119,42 @@ class WhisperCppStreamingTranscriber:
             threshold = self.silence_threshold
         return np.abs(audio_data).mean() < threshold
     
+    def _starts_with_noise_annotation(self, text):
+        """
+        Check if text starts with a noise annotation like (wind blowing), (silence), etc.
+        Only checks the beginning of the text - noise annotations later in text are allowed.
+        """
+        if not text:
+            return False
+        
+        text = text.strip()
+        
+        # Check if text starts with parentheses (likely noise annotation)
+        if text.startswith('('):
+            # Extract the first parenthetical expression
+            match = re.match(r'^\s*\(([^)]+)\)', text)
+            if match:
+                annotation_content = match.group(1).lower()
+                
+                # Common noise annotation keywords
+                noise_keywords = [
+                    'wind', 'blowing', 'silence', 'noise', 'static', 'music', 
+                    'breathing', 'rustling', 'door', 'footstep', 'car', 'phone', 
+                    'typing', 'clicking', 'mumbl', 'unintellig', 'inaudib', 
+                    'cough', 'sneez', 'laugh', 'cry', 'applause', 'sound',
+                    'background', 'ambient', 'hum', 'buzz'
+                ]
+                
+                # Check if the annotation contains noise-related keywords
+                if any(keyword in annotation_content for keyword in noise_keywords):
+                    print(f"[NOISE START DETECTED] Rejecting sentence starting with: '{match.group(0)}'")
+                    return True
+        
+        return False
+    
     def _is_processing_indicator(self, text):
         """
         Check if text contains processing indicators that should NOT end a sentence
-        Only catches actual processing indicators, not normal sentences
         """
         if not text:
             return False
@@ -217,7 +245,7 @@ class WhisperCppStreamingTranscriber:
             self.current_sentence_text = final_text
         
         if self.current_sentence_text and len(self.current_sentence_text.strip()) > 3:
-            # Clean up the sentence text (remove processing indicators)
+            # Clean up the sentence text (remove processing indicators from end only)
             cleaned_text = self.current_sentence_text.strip()
             
             # Remove trailing ellipsis or incomplete processing indicators
@@ -341,7 +369,7 @@ class WhisperCppStreamingTranscriber:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment - now processes ALL speech immediately
+        Process a sentence segment - only filter sentence starts, not middle content
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -359,14 +387,11 @@ class WhisperCppStreamingTranscriber:
                     continue
                 
                 if segment_text:
-                    # REMOVED: greeting detection - now processes all speech
-                    # Just add all valid text directly
                     if full_transcript:
                         full_transcript += " " + segment_text
                     else:
                         full_transcript = segment_text
             
-            # REMOVED: greeting check - now processes all transcribed text
             if not full_transcript:
                 return
             
@@ -374,7 +399,8 @@ class WhisperCppStreamingTranscriber:
             
             # Update current sentence text
             if self.current_sentence_text:
-                # Check for overlap and append only new content
+                # We already have a sentence started, so just append new content
+                # (no need to check for noise annotations at start since sentence already started)
                 words_current = self.current_sentence_text.split()
                 words_new = full_transcript.split()
                 
@@ -394,7 +420,13 @@ class WhisperCppStreamingTranscriber:
                     # No clear overlap, append with space
                     self.current_sentence_text += " " + full_transcript
             else:
-                self.current_sentence_text = full_transcript
+                # Starting new sentence - CHECK ONLY IF IT STARTS WITH NOISE ANNOTATION
+                if self._starts_with_noise_annotation(full_transcript):
+                    print(f"[REJECTED] Sentence starts with noise annotation: '{full_transcript[:50]}...'")
+                    return  # Skip this transcription, don't start a sentence
+                else:
+                    # Valid sentence start
+                    self.current_sentence_text = full_transcript
             
             # Check for sentence ending
             is_sentence_end, is_pause = self._detect_sentence_end(self.current_sentence_text)
@@ -437,7 +469,6 @@ class WhisperCppStreamingTranscriber:
         self.audio_queue = queue.Queue()
         self.silence_frames = 0
         self.is_speech_active = False
-        # REMOVED: self.has_detected_speech = False
         self.last_transcription_time = time.time()
         
         # Open PyAudio stream
@@ -463,7 +494,8 @@ class WhisperCppStreamingTranscriber:
             
             print("Listening with sentence-based segmentation...")
             print("Processing ALL speech immediately - no greeting required!")
-            print("Sentences will be processed individually - no re-processing!")
+            print("Preventing sentences from STARTING with noise annotations only!")
+            print("Noise annotations in middle of sentences are allowed!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -489,7 +521,7 @@ class WhisperCppStreamingTranscriber:
                 print(f"Error stopping stream: {e}")
         
         # Process any remaining audio in current sentence buffer
-        if len(self.current_sentence_buffer) > 0:  # REMOVED: greeting check
+        if len(self.current_sentence_buffer) > 0:
             try:
                 print("\n[PROCESSING FINAL SEGMENT]")
                 self._process_sentence_segment(self.current_sentence_buffer, is_silence_triggered=True)
