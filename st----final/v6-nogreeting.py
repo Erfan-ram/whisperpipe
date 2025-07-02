@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Fixed: proper sentence end detection (not catching normal sentences as processing indicators)
+Removed: greeting requirement - now processes all speech immediately
 """
 import numpy as np
 import pyaudio
@@ -83,9 +83,9 @@ class WhisperCppStreamingTranscriber:
         self.silence_frames_threshold = 25
         self.is_speech_active = False
         
-        # Speech detection flags
-        self.has_detected_speech = False
-        self.greeting_keywords = ["hello", "hey", "hi", "ok", "okay"]
+        # REMOVED: greeting detection - now processes all speech immediately
+        # self.has_detected_speech = False  # REMOVED
+        # self.greeting_keywords = ["hello", "hey", "hi", "ok", "okay"]  # REMOVED
         
         # Processing state
         self.last_transcription_time = time.time()
@@ -123,15 +123,10 @@ class WhisperCppStreamingTranscriber:
             threshold = self.silence_threshold
         return np.abs(audio_data).mean() < threshold
     
-    def _contains_greeting(self, text):
-        """Check if text contains greeting keywords"""
-        text_lower = text.lower()
-        return any(keyword in text_lower for keyword in self.greeting_keywords)
-    
     def _is_processing_indicator(self, text):
         """
         Check if text contains processing indicators that should NOT end a sentence
-        FIXED: Only catch actual processing indicators, not normal sentences
+        Only catches actual processing indicators, not normal sentences
         """
         if not text:
             return False
@@ -139,7 +134,6 @@ class WhisperCppStreamingTranscriber:
         text = text.strip()
         
         # Only check for explicit ellipsis patterns at the END of text
-        # These are the ONLY patterns that indicate processing/thinking
         processing_patterns = [
             r'\.{3,}\s*$',      # Three or more dots at end: "thinking..."
             r'\s+\.{2,}\s*$',   # Spaced dots at end: "well .."
@@ -169,7 +163,6 @@ class WhisperCppStreamingTranscriber:
         """
         Detect if text contains sentence-ending punctuation
         Returns: (is_sentence_end, is_pause_point)
-        FIXED: Better logic for detecting real sentence endings
         """
         if not text:
             return False, False
@@ -348,7 +341,7 @@ class WhisperCppStreamingTranscriber:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with proper sentence end detection
+        Process a sentence segment - now processes ALL speech immediately
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -366,17 +359,15 @@ class WhisperCppStreamingTranscriber:
                     continue
                 
                 if segment_text:
-                    if not self.has_detected_speech and self._contains_greeting(segment_text):
-                        print(f"\n[GREETING DETECTED]: {segment_text}")
-                        self.has_detected_speech = True
-                    
-                    if self.has_detected_speech:
-                        if full_transcript:
-                            full_transcript += " " + segment_text
-                        else:
-                            full_transcript = segment_text
+                    # REMOVED: greeting detection - now processes all speech
+                    # Just add all valid text directly
+                    if full_transcript:
+                        full_transcript += " " + segment_text
+                    else:
+                        full_transcript = segment_text
             
-            if not full_transcript or not self.has_detected_speech:
+            # REMOVED: greeting check - now processes all transcribed text
+            if not full_transcript:
                 return
             
             print(f"\n[TRANSCRIPTION] {full_transcript}")
@@ -405,7 +396,7 @@ class WhisperCppStreamingTranscriber:
             else:
                 self.current_sentence_text = full_transcript
             
-            # Check for sentence ending with improved logic
+            # Check for sentence ending
             is_sentence_end, is_pause = self._detect_sentence_end(self.current_sentence_text)
             
             # Decide whether to finalize sentence
@@ -446,7 +437,7 @@ class WhisperCppStreamingTranscriber:
         self.audio_queue = queue.Queue()
         self.silence_frames = 0
         self.is_speech_active = False
-        self.has_detected_speech = False
+        # REMOVED: self.has_detected_speech = False
         self.last_transcription_time = time.time()
         
         # Open PyAudio stream
@@ -471,9 +462,8 @@ class WhisperCppStreamingTranscriber:
             self.process_thread.start()
             
             print("Listening with sentence-based segmentation...")
-            print("Say a greeting (hello, hey, hi) to begin processing...")
+            print("Processing ALL speech immediately - no greeting required!")
             print("Sentences will be processed individually - no re-processing!")
-            print("Only actual ellipsis (...) will prevent sentence ending!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -499,7 +489,7 @@ class WhisperCppStreamingTranscriber:
                 print(f"Error stopping stream: {e}")
         
         # Process any remaining audio in current sentence buffer
-        if len(self.current_sentence_buffer) > 0 and self.has_detected_speech:
+        if len(self.current_sentence_buffer) > 0:  # REMOVED: greeting check
             try:
                 print("\n[PROCESSING FINAL SEGMENT]")
                 self._process_sentence_segment(self.current_sentence_buffer, is_silence_triggered=True)
