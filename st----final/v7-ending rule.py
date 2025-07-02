@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Fixed: Proper 5-second delay timer after punctuation detection
+Fixed: Duplicate sentence content prevention in overlap detection
 """
 import numpy as np
 import pyaudio
@@ -73,11 +73,15 @@ class WhisperCppStreamingTranscriber:
         self.max_sentence_duration = 60.0  # Increased to 60 seconds to prevent force segmentation interference
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
-        # FIXED: Delayed finalization parameters
+        # Delayed finalization parameters
         self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
         self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
         self.punctuation_detected_time = None # When we detected punctuation
         self.sentence_text_at_punctuation = ""  # Text when punctuation was detected
+        
+        # NEW: Duplication prevention
+        self.last_processed_transcript = ""    # Last transcript we processed
+        self.similarity_threshold = 0.9       # Threshold for considering transcripts similar
         
         # Fixed sentence detection patterns
         self.sentence_endings = ['.', '?', '!']
@@ -171,6 +175,48 @@ class WhisperCppStreamingTranscriber:
         # If nothing left after removing noise annotations, it's noise-only
         return len(cleaned) < 3
     
+    def _calculate_text_similarity(self, text1, text2):
+        """
+        Calculate similarity between two texts (simple word-based similarity)
+        Returns value between 0 and 1
+        """
+        if not text1 or not text2:
+            return 0.0
+        
+        # Clean and normalize both texts
+        clean1 = re.sub(r'\([^)]+\)', '', text1).strip().lower()
+        clean2 = re.sub(r'\([^)]+\)', '', text2).strip().lower()
+        
+        if not clean1 or not clean2:
+            return 0.0
+        
+        # Simple word-based similarity
+        words1 = set(clean1.split())
+        words2 = set(clean2.split())
+        
+        if not words1 or not words2:
+            return 0.0
+        
+        intersection = len(words1.intersection(words2))
+        union = len(words1.union(words2))
+        
+        return intersection / union if union > 0 else 0.0
+    
+    def _is_duplicate_transcription(self, new_transcript):
+        """
+        Check if new transcript is very similar to the last processed one
+        """
+        if not self.last_processed_transcript or not new_transcript:
+            return False
+        
+        similarity = self._calculate_text_similarity(new_transcript, self.last_processed_transcript)
+        
+        if similarity >= self.similarity_threshold:
+            print(f"[DUPLICATE DETECTED] Similarity: {similarity:.2f}, skipping duplicate transcript")
+            return True
+        
+        return False
+    
     def _has_new_meaningful_content(self, current_text, previous_text):
         """
         Check if current text has new meaningful content compared to previous text
@@ -187,6 +233,69 @@ class WhisperCppStreamingTranscriber:
         
         # Check if current text is meaningfully longer
         return len(current_clean) > len(previous_clean) + 2  # At least 3 new characters
+    
+    def _smart_text_merge(self, current_text, new_transcript):
+        """
+        Intelligently merge new transcript with current text, avoiding duplication
+        """
+        if not current_text:
+            return new_transcript
+        
+        if not new_transcript:
+            return current_text
+        
+        # Clean both texts for comparison
+        current_clean = re.sub(r'\([^)]+\)', '', current_text).strip()
+        new_clean = re.sub(r'\([^)]+\)', '', new_transcript).strip()
+        
+        # If new transcript is completely contained in current, don't add anything
+        if new_clean in current_clean:
+            print(f"[MERGE] New transcript already contained in current text")
+            return current_text
+        
+        # If current is completely contained in new, replace current
+        if current_clean in new_clean:
+            print(f"[MERGE] Current text contained in new transcript, replacing")
+            return new_transcript
+        
+        # Find the best overlap point
+        current_words = current_clean.split()
+        new_words = new_clean.split()
+        
+        # Look for overlap starting from the end of current text
+        best_overlap_len = 0
+        best_merge_point = len(new_words)
+        
+        # Check for overlaps of different lengths
+        for overlap_len in range(min(5, len(current_words)), 0, -1):
+            if len(current_words) >= overlap_len:
+                current_suffix = ' '.join(current_words[-overlap_len:])
+                
+                # Find this suffix in the new transcript
+                new_text_str = ' '.join(new_words)
+                overlap_pos = new_text_str.find(current_suffix)
+                
+                if overlap_pos != -1:
+                    # Found overlap, calculate where to cut the new text
+                    overlap_end_pos = overlap_pos + len(current_suffix)
+                    remaining_text = new_text_str[overlap_end_pos:].strip()
+                    
+                    if remaining_text:
+                        print(f"[MERGE] Found overlap of {overlap_len} words, appending: '{remaining_text[:30]}...'")
+                        return current_text + " " + remaining_text
+                    else:
+                        print(f"[MERGE] Found complete overlap, no new content to add")
+                        return current_text
+        
+        # No good overlap found, check similarity to avoid duplication
+        similarity = self._calculate_text_similarity(current_clean, new_clean)
+        if similarity > 0.7:  # High similarity, likely duplicate
+            print(f"[MERGE] High similarity ({similarity:.2f}), keeping current text")
+            return current_text
+        
+        # Low similarity, append with caution
+        print(f"[MERGE] No overlap found, appending new content")
+        return current_text + " " + new_transcript
     
     def _is_processing_indicator(self, text):
         """
@@ -335,6 +444,7 @@ class WhisperCppStreamingTranscriber:
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
         self.sentence_text_at_punctuation = ""
+        self.last_processed_transcript = ""  # Reset duplication tracking
     
     def _process_audio(self):
         """Process audio with sentence-based segmentation and proper delayed finalization"""
@@ -438,7 +548,7 @@ class WhisperCppStreamingTranscriber:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with proper timer logic
+        Process a sentence segment with proper duplication prevention
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -464,32 +574,22 @@ class WhisperCppStreamingTranscriber:
             if not full_transcript:
                 return
             
+            # Check for duplicate transcription before processing
+            if self._is_duplicate_transcription(full_transcript):
+                return  # Skip duplicate transcriptions
+            
             print(f"\n[TRANSCRIPTION] {full_transcript}")
+            
+            # Update last processed transcript
+            self.last_processed_transcript = full_transcript
             
             # Store previous sentence text to check for meaningful changes
             previous_sentence_text = self.current_sentence_text
             
-            # Update current sentence text
+            # Update current sentence text using smart merging
             if self.current_sentence_text:
-                # We already have a sentence started, so just append new content
-                words_current = self.current_sentence_text.split()
-                words_new = full_transcript.split()
-                
-                # Simple overlap detection
-                overlap_found = False
-                if len(words_current) >= 2 and len(words_new) >= 2:
-                    last_words = ' '.join(words_current[-2:])
-                    if last_words in full_transcript:
-                        # Find where overlap ends and append new content
-                        overlap_pos = full_transcript.find(last_words) + len(last_words)
-                        new_content = full_transcript[overlap_pos:].strip()
-                        if new_content:
-                            self.current_sentence_text += " " + new_content
-                            overlap_found = True
-                
-                if not overlap_found:
-                    # No clear overlap, append with space
-                    self.current_sentence_text += " " + full_transcript
+                # We already have a sentence started, use smart merge
+                self.current_sentence_text = self._smart_text_merge(self.current_sentence_text, full_transcript)
             else:
                 # Starting new sentence - CHECK ONLY IF IT STARTS WITH NOISE ANNOTATION
                 if self._starts_with_noise_annotation(full_transcript):
@@ -559,6 +659,7 @@ class WhisperCppStreamingTranscriber:
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
         self.sentence_text_at_punctuation = ""
+        self.last_processed_transcript = ""
         self.audio_queue = queue.Queue()
         self.silence_frames = 0
         self.is_speech_active = False
@@ -585,10 +686,10 @@ class WhisperCppStreamingTranscriber:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with sentence-based segmentation and FIXED delayed finalization...")
+            print("Listening with sentence-based segmentation and FIXED duplication prevention...")
             print("Processing ALL speech immediately - no greeting required!")
             print("Preventing sentences from STARTING with noise annotations only!")
-            print("Will wait 5 seconds after punctuation, cancel timer if new words detected!")
+            print("Will wait 5 seconds after punctuation, with smart duplicate detection!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
