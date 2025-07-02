@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Fixed: Duplicate sentence content prevention in overlap detection
+Final Fix: Use last transcription only + proper timer reset logic
 """
 import numpy as np
 import pyaudio
@@ -67,21 +67,17 @@ class WhisperCppStreamingTranscriber:
         
         # Sentence-based segmentation parameters
         self.current_sentence_buffer = np.array([], dtype=np.float32)  # Audio for current sentence
-        self.current_sentence_text = ""  # Accumulated text for current sentence
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
-        self.max_sentence_duration = 60.0  # Increased to 60 seconds to prevent force segmentation interference
+        self.max_sentence_duration = 60.0  # Max sentence duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
-        # Delayed finalization parameters
+        # SIMPLIFIED: Timer and transcription logic
+        self.last_transcription = ""           # Always keep the LAST transcription only
         self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
         self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
         self.punctuation_detected_time = None # When we detected punctuation
-        self.sentence_text_at_punctuation = ""  # Text when punctuation was detected
-        
-        # NEW: Duplication prevention
-        self.last_processed_transcript = ""    # Last transcript we processed
-        self.similarity_threshold = 0.9       # Threshold for considering transcripts similar
+        self.last_word_count = 0              # Track word count to detect new words
         
         # Fixed sentence detection patterns
         self.sentence_endings = ['.', '?', '!']
@@ -175,127 +171,35 @@ class WhisperCppStreamingTranscriber:
         # If nothing left after removing noise annotations, it's noise-only
         return len(cleaned) < 3
     
-    def _calculate_text_similarity(self, text1, text2):
+    def _count_meaningful_words(self, text):
         """
-        Calculate similarity between two texts (simple word-based similarity)
-        Returns value between 0 and 1
+        Count meaningful words in text (excluding noise annotations)
         """
-        if not text1 or not text2:
-            return 0.0
+        if not text:
+            return 0
         
-        # Clean and normalize both texts
-        clean1 = re.sub(r'\([^)]+\)', '', text1).strip().lower()
-        clean2 = re.sub(r'\([^)]+\)', '', text2).strip().lower()
+        # Remove noise annotations
+        cleaned = re.sub(r'\([^)]+\)', '', text).strip()
         
-        if not clean1 or not clean2:
-            return 0.0
+        if not cleaned:
+            return 0
         
-        # Simple word-based similarity
-        words1 = set(clean1.split())
-        words2 = set(clean2.split())
-        
-        if not words1 or not words2:
-            return 0.0
-        
-        intersection = len(words1.intersection(words2))
-        union = len(words1.union(words2))
-        
-        return intersection / union if union > 0 else 0.0
+        # Count words
+        words = cleaned.split()
+        return len(words)
     
-    def _is_duplicate_transcription(self, new_transcript):
+    def _has_new_words(self, current_transcription):
         """
-        Check if new transcript is very similar to the last processed one
+        Check if current transcription has new words compared to tracked word count
         """
-        if not self.last_processed_transcript or not new_transcript:
-            return False
+        current_word_count = self._count_meaningful_words(current_transcription)
         
-        similarity = self._calculate_text_similarity(new_transcript, self.last_processed_transcript)
-        
-        if similarity >= self.similarity_threshold:
-            print(f"[DUPLICATE DETECTED] Similarity: {similarity:.2f}, skipping duplicate transcript")
+        if current_word_count > self.last_word_count:
+            print(f"[NEW WORDS DETECTED] Word count: {self.last_word_count} → {current_word_count}")
+            self.last_word_count = current_word_count
             return True
         
         return False
-    
-    def _has_new_meaningful_content(self, current_text, previous_text):
-        """
-        Check if current text has new meaningful content compared to previous text
-        """
-        if not previous_text:
-            return bool(current_text and not self._is_noise_only_transcription(current_text))
-        
-        if not current_text:
-            return False
-        
-        # Remove noise annotations from both
-        current_clean = re.sub(r'\([^)]+\)', '', current_text).strip()
-        previous_clean = re.sub(r'\([^)]+\)', '', previous_text).strip()
-        
-        # Check if current text is meaningfully longer
-        return len(current_clean) > len(previous_clean) + 2  # At least 3 new characters
-    
-    def _smart_text_merge(self, current_text, new_transcript):
-        """
-        Intelligently merge new transcript with current text, avoiding duplication
-        """
-        if not current_text:
-            return new_transcript
-        
-        if not new_transcript:
-            return current_text
-        
-        # Clean both texts for comparison
-        current_clean = re.sub(r'\([^)]+\)', '', current_text).strip()
-        new_clean = re.sub(r'\([^)]+\)', '', new_transcript).strip()
-        
-        # If new transcript is completely contained in current, don't add anything
-        if new_clean in current_clean:
-            print(f"[MERGE] New transcript already contained in current text")
-            return current_text
-        
-        # If current is completely contained in new, replace current
-        if current_clean in new_clean:
-            print(f"[MERGE] Current text contained in new transcript, replacing")
-            return new_transcript
-        
-        # Find the best overlap point
-        current_words = current_clean.split()
-        new_words = new_clean.split()
-        
-        # Look for overlap starting from the end of current text
-        best_overlap_len = 0
-        best_merge_point = len(new_words)
-        
-        # Check for overlaps of different lengths
-        for overlap_len in range(min(5, len(current_words)), 0, -1):
-            if len(current_words) >= overlap_len:
-                current_suffix = ' '.join(current_words[-overlap_len:])
-                
-                # Find this suffix in the new transcript
-                new_text_str = ' '.join(new_words)
-                overlap_pos = new_text_str.find(current_suffix)
-                
-                if overlap_pos != -1:
-                    # Found overlap, calculate where to cut the new text
-                    overlap_end_pos = overlap_pos + len(current_suffix)
-                    remaining_text = new_text_str[overlap_end_pos:].strip()
-                    
-                    if remaining_text:
-                        print(f"[MERGE] Found overlap of {overlap_len} words, appending: '{remaining_text[:30]}...'")
-                        return current_text + " " + remaining_text
-                    else:
-                        print(f"[MERGE] Found complete overlap, no new content to add")
-                        return current_text
-        
-        # No good overlap found, check similarity to avoid duplication
-        similarity = self._calculate_text_similarity(current_clean, new_clean)
-        if similarity > 0.7:  # High similarity, likely duplicate
-            print(f"[MERGE] High similarity ({similarity:.2f}), keeping current text")
-            return current_text
-        
-        # Low similarity, append with caution
-        print(f"[MERGE] No overlap found, appending new content")
-        return current_text + " " + new_transcript
     
     def _is_processing_indicator(self, text):
         """
@@ -388,7 +292,7 @@ class WhisperCppStreamingTranscriber:
         Only returns True if:
         1. We're waiting for continuation after punctuation
         2. 5 seconds have passed
-        3. No new meaningful content was added
+        3. No new words were detected
         """
         if not self.waiting_for_continuation or self.punctuation_detected_time is None:
             return False
@@ -398,26 +302,30 @@ class WhisperCppStreamingTranscriber:
         
         # Check if delay period has passed
         if delay_elapsed >= self.finalization_delay:
-            # Check if sentence has grown meaningfully since punctuation was detected
-            if not self._has_new_meaningful_content(self.current_sentence_text, self.sentence_text_at_punctuation):
-                print(f"[TIMER EXPIRED] {self.finalization_delay}s passed with no new meaningful content")
-                return True
-            else:
-                print(f"[TIMER EXPIRED] But new content detected, continuing...")
-                self.waiting_for_continuation = False  # Reset waiting state
+            print(f"[TIMER EXPIRED] {self.finalization_delay}s passed, finalizing sentence")
+            return True
         
         return False
+    
+    def _destroy_timer(self):
+        """
+        Destroy the current timer and reset waiting state
+        """
+        if self.waiting_for_continuation:
+            print(f"[TIMER DESTROYED] New words detected, cancelling timer")
+            self.waiting_for_continuation = False
+            self.punctuation_detected_time = None
     
     def _finalize_sentence(self, final_text=None):
         """
         Finalize the current sentence and reset buffers
+        Use the last transcription as the final sentence
         """
-        if final_text:
-            self.current_sentence_text = final_text
+        sentence_text = final_text if final_text else self.last_transcription
         
-        if self.current_sentence_text and len(self.current_sentence_text.strip()) > 3:
+        if sentence_text and len(sentence_text.strip()) > 3:
             # Clean up the sentence text (remove processing indicators from end only)
-            cleaned_text = self.current_sentence_text.strip()
+            cleaned_text = sentence_text.strip()
             
             # Remove trailing ellipsis or incomplete processing indicators
             cleaned_text = re.sub(r'\.{2,}\s*$', '', cleaned_text)  # Remove trailing ellipsis
@@ -439,15 +347,14 @@ class WhisperCppStreamingTranscriber:
         
         # Reset for next sentence
         self.current_sentence_buffer = np.array([], dtype=np.float32)
-        self.current_sentence_text = ""
+        self.last_transcription = ""
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
-        self.sentence_text_at_punctuation = ""
-        self.last_processed_transcript = ""  # Reset duplication tracking
+        self.last_word_count = 0
     
     def _process_audio(self):
-        """Process audio with sentence-based segmentation and proper delayed finalization"""
+        """Process audio with sentence-based segmentation and proper timer logic"""
         while self.is_recording:
             try:
                 chunk_count = 0
@@ -548,7 +455,10 @@ class WhisperCppStreamingTranscriber:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with proper duplication prevention
+        Process a sentence segment with simplified logic:
+        - Always replace last_transcription with new transcription
+        - Check for new words to destroy timer
+        - Check for ending punctuation to start timer
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -574,69 +484,52 @@ class WhisperCppStreamingTranscriber:
             if not full_transcript:
                 return
             
-            # Check for duplicate transcription before processing
-            if self._is_duplicate_transcription(full_transcript):
-                return  # Skip duplicate transcriptions
+            # Skip if starts with noise annotation and we don't have a sentence yet
+            if not self.last_transcription and self._starts_with_noise_annotation(full_transcript):
+                print(f"[REJECTED] Sentence starts with noise annotation: '{full_transcript[:50]}...'")
+                return
             
             print(f"\n[TRANSCRIPTION] {full_transcript}")
             
-            # Update last processed transcript
-            self.last_processed_transcript = full_transcript
+            # ALWAYS replace the last transcription with the new one
+            self.last_transcription = full_transcript
             
-            # Store previous sentence text to check for meaningful changes
-            previous_sentence_text = self.current_sentence_text
-            
-            # Update current sentence text using smart merging
-            if self.current_sentence_text:
-                # We already have a sentence started, use smart merge
-                self.current_sentence_text = self._smart_text_merge(self.current_sentence_text, full_transcript)
-            else:
-                # Starting new sentence - CHECK ONLY IF IT STARTS WITH NOISE ANNOTATION
-                if self._starts_with_noise_annotation(full_transcript):
-                    print(f"[REJECTED] Sentence starts with noise annotation: '{full_transcript[:50]}...'")
-                    return  # Skip this transcription, don't start a sentence
-                else:
-                    # Valid sentence start
-                    self.current_sentence_text = full_transcript
-            
-            # Check if we have meaningful new content since last check
-            has_new_content = self._has_new_meaningful_content(self.current_sentence_text, previous_sentence_text)
-            
-            # If we were waiting for continuation and got new meaningful content, cancel the timer
-            if self.waiting_for_continuation and has_new_content:
-                print(f"[TIMER CANCELLED] New meaningful content detected")
-                self.waiting_for_continuation = False
-                self.punctuation_detected_time = None
-                self.sentence_text_at_punctuation = ""
+            # Check if we have new words (this will destroy timer if active)
+            if self._has_new_words(full_transcript):
+                self._destroy_timer()
             
             # Check for sentence ending
-            is_sentence_end, is_pause = self._detect_sentence_end(self.current_sentence_text)
+            is_sentence_end, is_pause = self._detect_sentence_end(full_transcript)
             
-            # Handle punctuation detection and timer logic
-            if is_sentence_end and self._can_segment() and not self._is_noise_only_transcription(full_transcript):
-                if not self.waiting_for_continuation:
-                    # Start waiting for continuation
-                    self.waiting_for_continuation = True
-                    self.punctuation_detected_time = time.time()
-                    self.sentence_text_at_punctuation = self.current_sentence_text
-                    print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s delay timer...")
-                else:
-                    # Already waiting, update the timer if we have new punctuation
-                    self.punctuation_detected_time = time.time()
-                    self.sentence_text_at_punctuation = self.current_sentence_text
-                    print(f"[PUNCTUATION DETECTED] Resetting {self.finalization_delay}s delay timer...")
+            # Start timer ONLY if:
+            # 1. We see sentence ending punctuation
+            # 2. We can segment (time requirements met)
+            # 3. It's not just noise
+            # 4. We're not already waiting
+            if (is_sentence_end and 
+                self._can_segment() and 
+                not self._is_noise_only_transcription(full_transcript) and 
+                not self.waiting_for_continuation):
+                
+                # Start the timer
+                self.waiting_for_continuation = True
+                self.punctuation_detected_time = time.time()
+                print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s timer...")
             
-            # Handle immediate finalization for silence (only if no meaningful speech and not waiting)
-            elif is_silence_triggered and self._can_segment() and not self._is_processing_indicator(self.current_sentence_text):
+            # Handle immediate finalization for silence (only if no timer active)
+            elif (is_silence_triggered and 
+                  self._can_segment() and 
+                  not self._is_processing_indicator(full_transcript) and 
+                  not self.waiting_for_continuation):
+                
                 if self._is_noise_only_transcription(full_transcript):
-                    # Only noise during silence - check if we should finalize
-                    if self.waiting_for_continuation:
-                        # Let the timer handle it
-                        pass
-                    elif self.current_sentence_text and len(self.current_sentence_text.strip()) > 3:
-                        # No timer active and we have content - finalize
-                        print(f"[SILENCE FINALIZATION] No timer active, finalizing current sentence")
+                    # Only noise during silence and no timer - finalize if we have content
+                    if self.last_transcription and len(self.last_transcription.strip()) > 3:
+                        print(f"[SILENCE FINALIZATION] Finalizing on silence with noise only")
                         self._finalize_sentence()
+                else:
+                    # Real speech during silence - continue
+                    pass
             
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
@@ -653,13 +546,12 @@ class WhisperCppStreamingTranscriber:
         self.is_recording = True
         self.rolling_buffer = np.array([], dtype=np.float32)
         self.current_sentence_buffer = np.array([], dtype=np.float32)
-        self.current_sentence_text = ""
+        self.last_transcription = ""
         self.completed_sentences = []
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
-        self.sentence_text_at_punctuation = ""
-        self.last_processed_transcript = ""
+        self.last_word_count = 0
         self.audio_queue = queue.Queue()
         self.silence_frames = 0
         self.is_speech_active = False
@@ -686,10 +578,11 @@ class WhisperCppStreamingTranscriber:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with sentence-based segmentation and FIXED duplication prevention...")
-            print("Processing ALL speech immediately - no greeting required!")
-            print("Preventing sentences from STARTING with noise annotations only!")
-            print("Will wait 5 seconds after punctuation, with smart duplicate detection!")
+            print("Listening with SIMPLIFIED sentence logic...")
+            print("- Uses LAST transcription only (no accumulation)")
+            print("- Timer starts on punctuation, destroyed on new words")
+            print("- 5-second delay before sending to LLM")
+            print("- No more duplication issues!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -723,7 +616,7 @@ class WhisperCppStreamingTranscriber:
                 print(f"Error processing final segment: {e}")
         
         # Finalize any pending sentence
-        if (self.waiting_for_continuation or self.current_sentence_text) and self.current_sentence_text:
+        if self.last_transcription and len(self.last_transcription.strip()) > 3:
             print("\n[FINALIZING PENDING SENTENCE]")
             self._finalize_sentence()
         
