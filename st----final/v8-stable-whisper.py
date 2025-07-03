@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 """
-Real-time speech-to-text streaming with OpenAI Whisper using a local model
+Real-time speech-to-text streaming with pywhispercpp using a local model file
 Optimized with sentence-based segmentation to prevent re-processing of audio
 Final Fix: Use last transcription only + proper timer reset logic
 """
@@ -17,29 +17,34 @@ import queue
 import re
 from collections import deque
 from pynput import keyboard
-import whisper
-import torch
+from pywhispercpp.model import Model
+import pywhispercpp.constants as constants
 
-class WhisperStreamingTranscriberWithSpecials:
-    def __init__(self, model_name="base.en", buffer_duration_seconds=5):
+class WhisperCppStreamingTranscriber:
+    def __init__(self, model_path, buffer_duration_seconds=2):
         """
-        Initialize the transcriber with OpenAI Whisper model
+        Initialize the transcriber with a local pywhispercpp model
         
         Args:
-            model_name: Whisper model name (tiny, base, small, medium, large, base.en, small.en)
+            model_path: Full path to your local ggml model file
             buffer_duration_seconds: Time window in seconds to hold audio for processing
         """
-        print(f"Loading Whisper model: {model_name}")
+        # Verify the model file exists
+        if not os.path.isfile(model_path):
+            raise FileNotFoundError(f"Model file not found at: {model_path}")
+        
+        print(f"Loading Whisper.cpp model from: {model_path}")
         
         try:
-            # Initialize the OpenAI Whisper model
-            self.model = whisper.load_model(model_name)
+            # Initialize the pywhispercpp model with your local model file
+            self.model = Model(
+                model=model_path,
+                single_segment=False,
+                print_progress=False,
+                n_threads=4,
+                language="en"
+            )
             print("Model loaded successfully!")
-            
-            # Check if CUDA is available
-            self.device = "cuda" if torch.cuda.is_available() else "cpu"
-            print(f"Using device: {self.device}")
-            
         except Exception as e:
             print(f"Error loading model: {e}")
             sys.exit(1)
@@ -47,7 +52,7 @@ class WhisperStreamingTranscriberWithSpecials:
         # Audio recording parameters
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
-        self.RATE = 16000  # Whisper expects 16kHz
+        self.RATE = constants.WHISPER_SAMPLE_RATE  # 16000 Hz
         self.CHUNK = 1024
         
         # Calculate buffer parameters
@@ -123,29 +128,12 @@ class WhisperStreamingTranscriberWithSpecials:
     def _starts_with_noise_annotation(self, text):
         """
         Check if text starts with a noise annotation like (wind blowing), (silence), etc.
-        Also check for Whisper special tokens like [laughter], [music], etc.
         Only checks the beginning of the text - noise annotations later in text are allowed.
         """
         if not text:
             return False
         
         text = text.strip()
-        
-        # Check for Whisper special tokens at the beginning
-        if text.startswith('['):
-            match = re.match(r'^\s*\[([^\]]+)\]', text)
-            if match:
-                special_token = match.group(1).lower()
-                
-                # Common Whisper special tokens that indicate non-speech
-                special_tokens = [
-                    'silence', 'music', 'laughter', 'applause', 'coughing',
-                    'breathing', 'noise', 'static', 'background'
-                ]
-                
-                if any(token in special_token for token in special_tokens):
-                    print(f"[SPECIAL TOKEN DETECTED] Rejecting sentence starting with: '{match.group(0)}'")
-                    return True
         
         # Check if text starts with parentheses (likely noise annotation)
         if text.startswith('('):
@@ -180,24 +168,18 @@ class WhisperStreamingTranscriberWithSpecials:
         # Remove all parenthetical expressions (noise annotations)
         cleaned = re.sub(r'\([^)]+\)', '', text).strip()
         
-        # Remove Whisper special tokens
-        cleaned = re.sub(r'\[[^\]]+\]', '', cleaned).strip()
-        
         # If nothing left after removing noise annotations, it's noise-only
         return len(cleaned) < 3
     
     def _count_meaningful_words(self, text):
         """
-        Count meaningful words in text (excluding noise annotations and special tokens)
+        Count meaningful words in text (excluding noise annotations)
         """
         if not text:
             return 0
         
         # Remove noise annotations
         cleaned = re.sub(r'\([^)]+\)', '', text).strip()
-        
-        # Remove Whisper special tokens
-        cleaned = re.sub(r'\[[^\]]+\]', '', cleaned).strip()
         
         if not cleaned:
             return 0
@@ -317,6 +299,13 @@ class WhisperStreamingTranscriberWithSpecials:
         
         current_time = time.time()
         delay_elapsed = current_time - self.punctuation_detected_time
+        
+        # print(f"----------------------------------------------- ")
+        # print(f"[DEBUG] Delay elapsed: {delay_elapsed:.2f}s since punctuation detected")
+        # print(f"[DEBUG] Waiting for continuation: {self.waiting_for_continuation}, "
+        #       f"Punctuation time: {self.punctuation_detected_time}, " 
+        #       f"Finalization delay: {self.finalization_delay}s")
+        
         
         # Check if delay period has passed
         if delay_elapsed >= self.finalization_delay:
@@ -473,7 +462,7 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with simplified logic using OpenAI Whisper:
+        Process a sentence segment with simplified logic:
         - Always replace last_transcription with new transcription
         - Check for new words to destroy timer
         - Check for ending punctuation to start timer
@@ -483,36 +472,41 @@ class WhisperStreamingTranscriberWithSpecials:
             return
         
         try:
-            # Transcribe using OpenAI Whisper
-            result = self.model.transcribe(
-                audio_buffer, 
-                fp16=False, 
-                language="en",
-                # This makes Whisper include special tokens like [laughter] and [silence]
-                suppress_tokens=None  # Don't suppress any tokens, including special ones
-            )
+            # Transcribe the current sentence buffer
+            segments = self.model.transcribe(audio_buffer)
             
-            new_text = result["text"].strip()
+            full_transcript = ""
+            for segment in segments:
+                segment_text = segment.text.strip()
+                
+                if "[BLANK_AUDIO]" in segment_text:
+                    continue
+                
+                if segment_text:
+                    if full_transcript:
+                        full_transcript += " " + segment_text
+                    else:
+                        full_transcript = segment_text
             
-            if not new_text:
+            if not full_transcript:
                 return
             
             # Skip if starts with noise annotation and we don't have a sentence yet
-            if not self.last_transcription and self._starts_with_noise_annotation(new_text):
-                print(f"[REJECTED] Sentence starts with noise annotation: '{new_text[:50]}...'")
+            if not self.last_transcription and self._starts_with_noise_annotation(full_transcript):
+                print(f"[REJECTED] Sentence starts with noise annotation: '{full_transcript[:50]}...'")
                 return
             
-            print(f"\n[TRANSCRIPTION] {new_text}")
+            print(f"\n[TRANSCRIPTION] {full_transcript}")
             
             # ALWAYS replace the last transcription with the new one
-            self.last_transcription = new_text
+            self.last_transcription = full_transcript
             
             # Check if we have new words (this will destroy timer if active)
-            if self._has_new_words(new_text):
+            if self._has_new_words(full_transcript):
                 self._destroy_timer()
             
             # Check for sentence ending
-            is_sentence_end, is_pause = self._detect_sentence_end(new_text)
+            is_sentence_end, is_pause = self._detect_sentence_end(full_transcript)
             
             # Start timer ONLY if:
             # 1. We see sentence ending punctuation
@@ -521,21 +515,22 @@ class WhisperStreamingTranscriberWithSpecials:
             # 4. We're not already waiting
             if (is_sentence_end and 
                 self._can_segment() and 
-                not self._is_noise_only_transcription(new_text) and 
+                not self._is_noise_only_transcription(full_transcript) and 
                 not self.waiting_for_continuation):
                 
                 # Start the timer
                 self.waiting_for_continuation = True
                 self.punctuation_detected_time = time.time()
+                # print(f"setting new timer for punctuation detected at {self.punctuation_detected_time}")
                 print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s timer...")
             
             # Handle immediate finalization for silence (only if no timer active)
             elif (is_silence_triggered and 
                   self._can_segment() and 
-                  not self._is_processing_indicator(new_text) and 
+                  not self._is_processing_indicator(full_transcript) and 
                   not self.waiting_for_continuation):
                 
-                if self._is_noise_only_transcription(new_text):
+                if self._is_noise_only_transcription(full_transcript):
                     # Only noise during silence and no timer - finalize if we have content
                     if self.last_transcription and len(self.last_transcription.strip()) > 3:
                         print(f"[SILENCE FINALIZATION] Finalizing on silence with noise only")
@@ -591,12 +586,11 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with OpenAI Whisper + SIMPLIFIED sentence logic...")
-            print("- Uses OpenAI Whisper with special token support")
+            print("Listening with SIMPLIFIED sentence logic...")
             print("- Uses LAST transcription only (no accumulation)")
             print("- Timer starts on punctuation, destroyed on new words")
             print("- 5-second delay before sending to LLM")
-            print("- Detects [laughter], [music], and other special tokens!")
+            print("- No more duplication issues!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -672,12 +666,15 @@ def main():
     signal.signal(signal.SIGINT, signal_handler)
     signal.signal(signal.SIGTERM, signal_handler)
     
-    # Model selection - you can change this to any Whisper model
-    MODEL_NAME = "base.en"  # Options: tiny, base, small, medium, large, tiny.en, base.en, small.en
+    # Model path - update this to your model location
+    MODEL_PATH = "/home/erfan/Desktop/Rag-zone/whisperacpp/whisper.cpp/models/ggml-base.en.bin"
+    
+    if not os.path.isfile(MODEL_PATH):
+        MODEL_PATH = input("Enter the full path to your ggml model file: ")
     
     try:
-        # Initialize the transcriber with OpenAI Whisper
-        transcriber = WhisperStreamingTranscriberWithSpecials(model_name=MODEL_NAME)
+        # Initialize the transcriber
+        transcriber = WhisperCppStreamingTranscriber(model_path=MODEL_PATH)
     except Exception as e:
         print(f"Failed to initialize transcriber: {e}")
         sys.exit(1)
