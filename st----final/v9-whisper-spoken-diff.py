@@ -4,7 +4,7 @@
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
 Optimized with sentence-based segmentation to prevent re-processing of audio
-Final Fix: Use last transcription only + proper timer reset logic
+Enhanced with foreign language detection and reset logic
 """
 import numpy as np
 import pyaudio
@@ -88,6 +88,12 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_transcription_time = time.time()
         self.processing_interval = 1.0
         
+        # Foreign language and annotation detection parameters
+        self.foreign_language_rejection_count = 0
+        self.max_foreign_rejections = 3  # Reset after 3 consecutive foreign language detections
+        self.last_rejection_time = None
+        self.rejection_reset_timeout = 10.0  # Reset rejection count after 10 seconds
+        
         # Threading and synchronization
         self.process_thread = None
         self.lock = threading.Lock()
@@ -119,6 +125,109 @@ class WhisperStreamingTranscriberWithSpecials:
         if threshold is None:
             threshold = self.silence_threshold
         return np.abs(audio_data).mean() < threshold
+    
+    def _detect_foreign_language_or_annotation(self, text):
+        """
+        Detect if transcription contains foreign language indicators or audio annotations
+        Returns: (is_foreign_language, is_audio_annotation, rejection_reason)
+        """
+        if not text:
+            return False, False, None
+        
+        text_clean = text.strip()
+        text_lower = text_clean.lower()
+        
+        # Pattern 1: Direct foreign language indicators
+        foreign_language_patterns = [
+            r'\(.*speaking in.*language.*\)',
+            r'\(.*foreign language.*\)',
+            r'\(.*speaks in.*\)',
+            r'\(.*indistinct.*speaks in.*\)',
+            r'\(.*speaking.*french.*\)',
+            r'\(.*speaking.*spanish.*\)',
+            r'\(.*speaking.*german.*\)',
+            r'\(.*non-english.*\)',
+            r'\[.*foreign.*language.*\]',
+            r'\[.*non-english.*\]'
+        ]
+        
+        for pattern in foreign_language_patterns:
+            if re.search(pattern, text_lower):
+                return True, False, f"Foreign language pattern: {pattern}"
+        
+        # Pattern 2: Audio/environmental annotations
+        audio_annotation_patterns = [
+            r'\(.*wind.*blowing.*\)',
+            r'\(.*buzzing.*\)',
+            r'\(.*static.*\)',
+            r'\(.*noise.*\)',
+            r'\(.*music.*\)',
+            r'\(.*background.*\)',
+            r'\(.*ambient.*\)',
+            r'\(.*sound.*\)',
+            r'\(.*audio.*\)',
+            r'\(.*silence.*\)',
+            r'\(.*muffled.*\)',
+            r'\(.*distorted.*\)',
+            r'\[.*music.*\]',
+            r'\[.*noise.*\]',
+            r'\[.*silence.*\]'
+        ]
+        
+        for pattern in audio_annotation_patterns:
+            if re.search(pattern, text_lower):
+                return False, True, f"Audio annotation: {pattern}"
+        
+        # Pattern 3: Check if transcription is MOSTLY parenthetical content
+        # Remove all parenthetical and bracketed content
+        cleaned_text = re.sub(r'\([^)]*\)', '', text_clean)
+        cleaned_text = re.sub(r'\[[^\]]*\]', '', cleaned_text)
+        cleaned_text = cleaned_text.strip()
+        
+        # If less than 20% is actual speech content, consider it annotation-heavy
+        if len(cleaned_text) < len(text_clean) * 0.2:
+            return False, True, "Mostly parenthetical/bracketed content"
+        
+        return False, False, None
+    
+    def _should_reset_due_to_foreign_language(self):
+        """
+        Check if we should reset the sentence state due to repeated foreign language detection
+        """
+        current_time = time.time()
+        
+        # Reset rejection counter if enough time has passed
+        if (self.last_rejection_time and 
+            current_time - self.last_rejection_time > self.rejection_reset_timeout):
+            self.foreign_language_rejection_count = 0
+            self.last_rejection_time = None
+        
+        return self.foreign_language_rejection_count >= self.max_foreign_rejections
+    
+    def _reset_sentence_state(self, reason="Foreign language detection"):
+        """
+        Reset the current sentence state and clear buffers
+        """
+        print(f"\n[RESET STATE] {reason}")
+        print(f"[RESET STATE] Clearing sentence buffer and resetting state")
+        
+        # Clear all sentence-related state
+        self.current_sentence_buffer = np.array([], dtype=np.float32)
+        self.last_transcription = ""
+        self.sentence_start_time = None
+        self.waiting_for_continuation = False
+        self.punctuation_detected_time = None
+        self.last_word_count = 0
+        
+        # Reset foreign language detection counters
+        self.foreign_language_rejection_count = 0
+        self.last_rejection_time = None
+        
+        # Clear speech detection state
+        self.is_speech_active = False
+        self.silence_frames = 0
+        
+        print(f"[RESET STATE] Ready for fresh sentence detection")
     
     def _starts_with_noise_annotation(self, text):
         """
@@ -382,6 +491,10 @@ class WhisperStreamingTranscriberWithSpecials:
                 if self._should_finalize_after_delay():
                     self._finalize_sentence()
                 
+                # Check if we should reset due to foreign language detection
+                if self._should_reset_due_to_foreign_language():
+                    self._reset_sentence_state("Too many foreign language detections")
+                
                 # Collect audio chunks
                 while not self.audio_queue.empty() and chunk_count < 15:
                     chunk = self.audio_queue.get(block=False)
@@ -473,10 +586,7 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
         """
-        Process a sentence segment with simplified logic using OpenAI Whisper:
-        - Always replace last_transcription with new transcription
-        - Check for new words to destroy timer
-        - Check for ending punctuation to start timer
+        Process a sentence segment with foreign language detection and reset logic
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -497,12 +607,36 @@ class WhisperStreamingTranscriberWithSpecials:
             if not new_text:
                 return
             
+            print(f"\n[TRANSCRIPTION] {new_text}")
+            
+            # NEW: Check for foreign language or audio annotations
+            is_foreign, is_audio_annotation, rejection_reason = self._detect_foreign_language_or_annotation(new_text)
+            
+            if is_foreign or is_audio_annotation:
+                print(f"[REJECTED] {rejection_reason}")
+                
+                # Increment rejection counter and update timestamp
+                self.foreign_language_rejection_count += 1
+                self.last_rejection_time = time.time()
+                
+                print(f"[REJECTION COUNT] {self.foreign_language_rejection_count}/{self.max_foreign_rejections}")
+                
+                # If we've had too many rejections, reset immediately
+                if self.foreign_language_rejection_count >= self.max_foreign_rejections:
+                    self._reset_sentence_state("Maximum foreign language rejections reached")
+                
+                return  # Don't process this transcription further
+            
+            # Reset foreign language rejection counter on successful English transcription
+            if self.foreign_language_rejection_count > 0:
+                print(f"[ENGLISH DETECTED] Resetting foreign language rejection counter")
+                self.foreign_language_rejection_count = 0
+                self.last_rejection_time = None
+            
             # Skip if starts with noise annotation and we don't have a sentence yet
             if not self.last_transcription and self._starts_with_noise_annotation(new_text):
                 print(f"[REJECTED] Sentence starts with noise annotation: '{new_text[:50]}...'")
                 return
-            
-            print(f"\n[TRANSCRIPTION] {new_text}")
             
             # ALWAYS replace the last transcription with the new one
             self.last_transcription = new_text
@@ -570,6 +704,10 @@ class WhisperStreamingTranscriberWithSpecials:
         self.is_speech_active = False
         self.last_transcription_time = time.time()
         
+        # Reset foreign language detection state
+        self.foreign_language_rejection_count = 0
+        self.last_rejection_time = None
+        
         # Open PyAudio stream
         try:
             self.stream = self.p.open(
@@ -591,12 +729,13 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with OpenAI Whisper + SIMPLIFIED sentence logic...")
+            print("Listening with OpenAI Whisper + Enhanced foreign language detection...")
             print("- Uses OpenAI Whisper with special token support")
-            print("- Uses LAST transcription only (no accumulation)")
+            print("- Detects and rejects foreign language transcriptions")
+            print("- Resets state after repeated foreign language detection")
+            print("- Prevents repetitive buffering of annotations")
             print("- Timer starts on punctuation, destroyed on new words")
             print("- 5-second delay before sending to LLM")
-            print("- Detects [laughter], [music], and other special tokens!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
