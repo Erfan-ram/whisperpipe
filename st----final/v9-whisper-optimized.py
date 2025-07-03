@@ -3,8 +3,8 @@
 
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
-Optimized with sentence-based segmentation to prevent re-processing of audio
-Enhanced with foreign language detection and reset logic
+Simplified version with foreign language detection and reset logic
+Removed silence detection and noise start checking as they're handled by the reset system
 """
 import numpy as np
 import pyaudio
@@ -53,7 +53,6 @@ class WhisperStreamingTranscriberWithSpecials:
         # Calculate buffer parameters
         self.buffer_duration_seconds = buffer_duration_seconds
         self.buffer_size = int(self.RATE * buffer_duration_seconds)
-        self.overlap_ratio = 0.5
         
         # Processing parameters
         self.audio_queue = queue.Queue()
@@ -67,22 +66,16 @@ class WhisperStreamingTranscriberWithSpecials:
         self.max_sentence_duration = 60.0  # Max sentence duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
-        # SIMPLIFIED: Timer and transcription logic
+        # Timer and transcription logic
         self.last_transcription = ""           # Always keep the LAST transcription only
         self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
         self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
         self.punctuation_detected_time = None # When we detected punctuation
         self.last_word_count = 0              # Track word count to detect new words
         
-        # Fixed sentence detection patterns
+        # Sentence detection patterns
         self.sentence_endings = ['.', '?', '!']
         self.pause_endings = [',', ';', ':']  # Shorter pauses, not full sentence breaks
-        
-        # Silence detection parameters
-        self.silence_threshold = 0.01
-        self.silence_frames = 0
-        self.silence_frames_threshold = 25
-        self.is_speech_active = False
         
         # Processing state
         self.last_transcription_time = time.time()
@@ -119,12 +112,6 @@ class WhisperStreamingTranscriberWithSpecials:
             print(f"Error in audio callback: {e}")
         
         return (in_data, pyaudio.paContinue)
-    
-    def _is_silent(self, audio_data, threshold=None):
-        """Check if audio segment is silent"""
-        if threshold is None:
-            threshold = self.silence_threshold
-        return np.abs(audio_data).mean() < threshold
     
     def _detect_foreign_language_or_annotation(self, text):
         """
@@ -223,61 +210,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.foreign_language_rejection_count = 0
         self.last_rejection_time = None
         
-        # Clear speech detection state
-        self.is_speech_active = False
-        self.silence_frames = 0
-        
         print(f"[RESET STATE] Ready for fresh sentence detection")
-    
-    def _starts_with_noise_annotation(self, text):
-        """
-        Check if text starts with a noise annotation like (wind blowing), (silence), etc.
-        Also check for Whisper special tokens like [laughter], [music], etc.
-        Only checks the beginning of the text - noise annotations later in text are allowed.
-        """
-        if not text:
-            return False
-        
-        text = text.strip()
-        
-        # Check for Whisper special tokens at the beginning
-        if text.startswith('['):
-            match = re.match(r'^\s*\[([^\]]+)\]', text)
-            if match:
-                special_token = match.group(1).lower()
-                
-                # Common Whisper special tokens that indicate non-speech
-                special_tokens = [
-                    'silence', 'music', 'laughter', 'applause', 'coughing',
-                    'breathing', 'noise', 'static', 'background'
-                ]
-                
-                if any(token in special_token for token in special_tokens):
-                    print(f"[SPECIAL TOKEN DETECTED] Rejecting sentence starting with: '{match.group(0)}'")
-                    return True
-        
-        # Check if text starts with parentheses (likely noise annotation)
-        if text.startswith('('):
-            # Extract the first parenthetical expression
-            match = re.match(r'^\s*\(([^)]+)\)', text)
-            if match:
-                annotation_content = match.group(1).lower()
-                
-                # Common noise annotation keywords
-                noise_keywords = [
-                    'wind', 'blowing', 'silence', 'noise', 'static', 'music', 
-                    'breathing', 'rustling', 'door', 'footstep', 'car', 'phone', 
-                    'typing', 'clicking', 'mumbl', 'unintellig', 'inaudib', 
-                    'cough', 'sneez', 'laugh', 'cry', 'applause', 'sound',
-                    'background', 'ambient', 'hum', 'buzz'
-                ]
-                
-                # Check if the annotation contains noise-related keywords
-                if any(keyword in annotation_content for keyword in noise_keywords):
-                    print(f"[NOISE START DETECTED] Rejecting sentence starting with: '{match.group(0)}'")
-                    return True
-        
-        return False
     
     def _is_noise_only_transcription(self, text):
         """
@@ -481,7 +414,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_word_count = 0
     
     def _process_audio(self):
-        """Process audio with sentence-based segmentation and proper timer logic"""
+        """Simplified audio processing without silence detection"""
         while self.is_recording:
             try:
                 chunk_count = 0
@@ -504,28 +437,20 @@ class WhisperStreamingTranscriberWithSpecials:
                     
                     chunk_count += 1
                     
-                    # Silence detection
-                    if self._is_silent(chunk):
-                        self.silence_frames += 1
-                    else:
-                        self.silence_frames = 0
-                        if not self.is_speech_active:
-                            print("\n[SPEECH DETECTED]")
-                            self.is_speech_active = True
-                            # Start new sentence timing if not already started
-                            if self.sentence_start_time is None:
-                                self.sentence_start_time = time.time()
+                    # Start sentence timing if not already started
+                    if self.sentence_start_time is None:
+                        self.sentence_start_time = time.time()
                 
                 # Maintain rolling buffer size
                 with self.lock:
                     if len(self.rolling_buffer) > self.buffer_size:
                         self.rolling_buffer = self.rolling_buffer[-self.buffer_size:]
                 
-                # Add to current sentence buffer during speech
+                # Add to current sentence buffer
                 current_time = time.time()
-                if self.is_speech_active and chunk_count > 0:
+                if chunk_count > 0:
                     with self.lock:
-                        # Fixed: Ensure we use integer indices for slicing
+                        # Ensure we use integer indices for slicing
                         chunk_samples = int(self.CHUNK * chunk_count)
                         if len(self.rolling_buffer) >= chunk_samples:
                             latest_audio = np.copy(self.rolling_buffer[-chunk_samples:])
@@ -540,22 +465,9 @@ class WhisperStreamingTranscriberWithSpecials:
                         if len(self.current_sentence_buffer) > max_sentence_buffer:
                             self.current_sentence_buffer = self.current_sentence_buffer[-max_sentence_buffer:]
                 
-                # Check for silence (potential sentence end)
-                if self.is_speech_active and self.silence_frames >= self.silence_frames_threshold:
-                    print("\n[SILENCE DETECTED]")
-                    self.is_speech_active = False
-                    
-                    # Process current sentence buffer if we have content
-                    min_buffer_size = int(self.RATE * 0.5)
-                    if len(self.current_sentence_buffer) > min_buffer_size:
-                        self._process_sentence_segment(self.current_sentence_buffer, is_silence_triggered=True)
-                    
-                    self.silence_frames = 0
-                
-                # Process during ongoing speech (periodic transcription)
+                # Process during ongoing audio (periodic transcription)
                 min_processing_buffer = int(self.RATE * 0.8)
                 should_process = (
-                    self.is_speech_active and 
                     (current_time - self.last_transcription_time >= self.processing_interval) and 
                     len(self.current_sentence_buffer) > min_processing_buffer
                 )
@@ -567,10 +479,7 @@ class WhisperStreamingTranscriberWithSpecials:
                     if should_force:
                         print("\n[FORCE SEGMENTATION - Time limit reached]")
                     
-                    self._process_sentence_segment(
-                        self.current_sentence_buffer, 
-                        is_silence_triggered=should_force
-                    )
+                    self._process_sentence_segment(self.current_sentence_buffer)
                     self.last_transcription_time = time.time()
                 
                 # Adaptive sleep
@@ -584,7 +493,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 print(f"Error in audio processing thread: {e}")
                 time.sleep(0.1)
     
-    def _process_sentence_segment(self, audio_buffer, is_silence_triggered=False):
+    def _process_sentence_segment(self, audio_buffer):
         """
         Process a sentence segment with foreign language detection and reset logic
         """
@@ -609,7 +518,7 @@ class WhisperStreamingTranscriberWithSpecials:
             
             print(f"\n[TRANSCRIPTION] {new_text}")
             
-            # NEW: Check for foreign language or audio annotations
+            # Check for foreign language or audio annotations
             is_foreign, is_audio_annotation, rejection_reason = self._detect_foreign_language_or_annotation(new_text)
             
             if is_foreign or is_audio_annotation:
@@ -632,11 +541,6 @@ class WhisperStreamingTranscriberWithSpecials:
                 print(f"[ENGLISH DETECTED] Resetting foreign language rejection counter")
                 self.foreign_language_rejection_count = 0
                 self.last_rejection_time = None
-            
-            # Skip if starts with noise annotation and we don't have a sentence yet
-            if not self.last_transcription and self._starts_with_noise_annotation(new_text):
-                print(f"[REJECTED] Sentence starts with noise annotation: '{new_text[:50]}...'")
-                return
             
             # ALWAYS replace the last transcription with the new one
             self.last_transcription = new_text
@@ -663,21 +567,6 @@ class WhisperStreamingTranscriberWithSpecials:
                 self.punctuation_detected_time = time.time()
                 print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s timer...")
             
-            # Handle immediate finalization for silence (only if no timer active)
-            elif (is_silence_triggered and 
-                  self._can_segment() and 
-                  not self._is_processing_indicator(new_text) and 
-                  not self.waiting_for_continuation):
-                
-                if self._is_noise_only_transcription(new_text):
-                    # Only noise during silence and no timer - finalize if we have content
-                    if self.last_transcription and len(self.last_transcription.strip()) > 3:
-                        print(f"[SILENCE FINALIZATION] Finalizing on silence with noise only")
-                        self._finalize_sentence()
-                else:
-                    # Real speech during silence - continue
-                    pass
-            
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
     
@@ -700,8 +589,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.punctuation_detected_time = None
         self.last_word_count = 0
         self.audio_queue = queue.Queue()
-        self.silence_frames = 0
-        self.is_speech_active = False
         self.last_transcription_time = time.time()
         
         # Reset foreign language detection state
@@ -729,11 +616,10 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with OpenAI Whisper + Enhanced foreign language detection...")
-            print("- Uses OpenAI Whisper with special token support")
+            print("Listening with Simplified OpenAI Whisper + Foreign language detection...")
+            print("- Continuous audio processing (no silence detection)")
             print("- Detects and rejects foreign language transcriptions")
             print("- Resets state after repeated foreign language detection")
-            print("- Prevents repetitive buffering of annotations")
             print("- Timer starts on punctuation, destroyed on new words")
             print("- 5-second delay before sending to LLM")
             return True
@@ -764,7 +650,7 @@ class WhisperStreamingTranscriberWithSpecials:
         if len(self.current_sentence_buffer) > 0:
             try:
                 print("\n[PROCESSING FINAL SEGMENT]")
-                self._process_sentence_segment(self.current_sentence_buffer, is_silence_triggered=True)
+                self._process_sentence_segment(self.current_sentence_buffer)
             except Exception as e:
                 print(f"Error processing final segment: {e}")
         
