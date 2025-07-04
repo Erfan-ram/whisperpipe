@@ -3,8 +3,8 @@
 
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
-Simplified version with foreign language detection and reset logic
-Removed silence detection and noise start checking as they're handled by the reset system
+Enhanced with Dual Buffer System and Word-Level Timestamp Tracking
+Prevents exponential reprocessing by committing stable portions
 """
 import numpy as np
 import pyaudio
@@ -59,8 +59,18 @@ class WhisperStreamingTranscriberWithSpecials:
         self.rolling_buffer = np.array([], dtype=np.float32)
         self.is_recording = False
         
+        # Dual Buffer System
+        self.stable_text_buffer = ""  # Confirmed text that won't change
+        self.stable_audio_buffer = np.array([], dtype=np.float32)  # Corresponding audio
+        self.active_audio_buffer = np.array([], dtype=np.float32)  # Current processing audio
+        
+        # Transcription tracking for pattern detection
+        self.transcription_history = []  # Store last few transcriptions
+        self.temp_timestamps_dict = {}  # Word -> end_time mapping when duplicates found
+        self.duplicate_detection_state = "waiting"  # "waiting", "found_duplicate", "confirmed"
+        self.confirmed_pattern = ""  # The pattern we've confirmed 3 times
+        
         # Sentence-based segmentation parameters
-        self.current_sentence_buffer = np.array([], dtype=np.float32)  # Audio for current sentence
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
         self.max_sentence_duration = 60.0  # Max sentence duration
@@ -112,6 +122,174 @@ class WhisperStreamingTranscriberWithSpecials:
             print(f"Error in audio callback: {e}")
         
         return (in_data, pyaudio.paContinue)
+    
+    def _find_longest_common_prefix(self, text1, text2):
+        """
+        Find the longest common prefix between two transcriptions
+        Returns the common text portion
+        """
+        if not text1 or not text2:
+            return ""
+        
+        # Split into words for better comparison
+        words1 = text1.split()
+        words2 = text2.split()
+        
+        common_words = []
+        for i in range(min(len(words1), len(words2))):
+            if words1[i] == words2[i]:
+                common_words.append(words1[i])
+            else:
+                break
+        
+        return " ".join(common_words)
+    
+    def _extract_word_timestamps(self, result):
+        """
+        Extract word-level timestamps from Whisper result
+        Returns: dict of {word: end_time}
+        """
+        word_timestamps = {}
+        
+        if "segments" in result:
+            for segment in result["segments"]:
+                if "words" in segment:
+                    for word_info in segment["words"]:
+                        word = word_info.get("word", "").strip()
+                        end_time = word_info.get("end", 0)
+                        if word:
+                            # Handle punctuation attached to words
+                            word_clean = word.lower().strip(".,!?;:")
+                            word_timestamps[word] = end_time
+                            if word_clean != word.lower():
+                                word_timestamps[word_clean] = end_time
+        
+        return word_timestamps
+    
+    def _find_last_word_end_time(self, text, word_timestamps):
+        """
+        Find the end time of the last word in the given text
+        """
+        if not text or not word_timestamps:
+            return None
+        
+        words = text.split()
+        if not words:
+            return None
+        
+        # Try to find the last word's timestamp
+        last_word = words[-1]
+        
+        # Try exact match first
+        if last_word in word_timestamps:
+            return word_timestamps[last_word]
+        
+        # Try without punctuation
+        last_word_clean = last_word.lower().strip(".,!?;:")
+        if last_word_clean in word_timestamps:
+            return word_timestamps[last_word_clean]
+        
+        # Try to find any word that contains our word
+        for word, timestamp in word_timestamps.items():
+            if last_word.lower() in word.lower() or word.lower() in last_word.lower():
+                return timestamp
+        
+        return None
+    
+    def _commit_to_stable_buffer(self, stable_text, end_time):
+        """
+        Move confirmed text and corresponding audio to stable buffer
+        """
+        print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
+        print(f"[COMMITTING TO STABLE] End time: {end_time}s")
+        
+        # Add to stable text buffer
+        if self.stable_text_buffer:
+            self.stable_text_buffer += " " + stable_text
+        else:
+            self.stable_text_buffer = stable_text
+        
+        # Calculate audio samples to move
+        end_samples = int(end_time * self.RATE)
+        
+        if len(self.active_audio_buffer) > end_samples:
+            # Move audio to stable buffer
+            audio_to_move = self.active_audio_buffer[:end_samples]
+            self.stable_audio_buffer = np.append(self.stable_audio_buffer, audio_to_move)
+            
+            # Keep remaining audio in active buffer
+            self.active_audio_buffer = self.active_audio_buffer[end_samples:]
+            
+            print(f"[BUFFER MOVED] Moved {end_time}s of audio to stable buffer")
+            print(f"[BUFFER STATUS] Stable audio: {len(self.stable_audio_buffer)/self.RATE:.1f}s, Active audio: {len(self.active_audio_buffer)/self.RATE:.1f}s")
+        
+        # Debug output as requested
+        print(f"\nstable buffer: {self.stable_text_buffer}")
+        remaining_text = self.last_transcription[len(stable_text):].strip()
+        print(f"active buffer: {remaining_text}")
+    
+    def _process_transcription_pattern(self, new_text, word_timestamps):
+        """
+        Process new transcription for pattern detection and buffer management
+        """
+        # Add to history
+        self.transcription_history.append(new_text)
+        
+        # Keep only last 3 transcriptions
+        if len(self.transcription_history) > 3:
+            self.transcription_history.pop(0)
+        
+        # Need at least 2 transcriptions to compare
+        if len(self.transcription_history) < 2:
+            return
+        
+        current_text = self.transcription_history[-1]
+        previous_text = self.transcription_history[-2]
+        
+        # Find common prefix between current and previous
+        common_prefix = self._find_longest_common_prefix(previous_text, current_text)
+        
+        if len(common_prefix) > 10:  # Only consider meaningful common prefixes
+            
+            if self.duplicate_detection_state == "waiting":
+                # First time we see a duplicate
+                print(f"\n[DUPLICATE DETECTED] Common text: '{common_prefix}'")
+                print(f"[SAVING TIMESTAMPS] Waiting for 3rd confirmation...")
+                
+                # Save word timestamps for this pattern
+                self.temp_timestamps_dict = word_timestamps.copy()
+                self.confirmed_pattern = common_prefix
+                self.duplicate_detection_state = "found_duplicate"
+                
+                # Debug output
+                print(f"[saved dic double founded : {common_prefix}]")
+                
+            elif self.duplicate_detection_state == "found_duplicate":
+                # Check if we have 3rd confirmation
+                if len(self.transcription_history) >= 3:
+                    third_text = self.transcription_history[-3]
+                    common_with_third = self._find_longest_common_prefix(common_prefix, third_text)
+                    
+                    if len(common_with_third) > 10 and common_with_third == self.confirmed_pattern:
+                        # We have 3-way confirmation!
+                        print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{self.confirmed_pattern}'")
+                        
+                        # Find the end time of the last word in confirmed pattern
+                        end_time = self._find_last_word_end_time(self.confirmed_pattern, self.temp_timestamps_dict)
+                        
+                        if end_time is not None:
+                            # Commit to stable buffer
+                            self._commit_to_stable_buffer(self.confirmed_pattern, end_time)
+                            
+                            # Reset state for next pattern detection
+                            self.duplicate_detection_state = "waiting"
+                            self.confirmed_pattern = ""
+                            self.temp_timestamps_dict = {}
+                            
+                            # Clear transcription history to start fresh
+                            self.transcription_history = []
+                        else:
+                            print(f"[WARNING] Could not find timestamp for last word in pattern")
     
     def _detect_foreign_language_or_annotation(self, text):
         """
@@ -196,15 +374,21 @@ class WhisperStreamingTranscriberWithSpecials:
         Reset the current sentence state and clear buffers
         """
         print(f"\n[RESET STATE] {reason}")
-        print(f"[RESET STATE] Clearing sentence buffer and resetting state")
+        print(f"[RESET STATE] Clearing buffers and resetting state")
         
         # Clear all sentence-related state
-        self.current_sentence_buffer = np.array([], dtype=np.float32)
+        self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
         self.last_word_count = 0
+        
+        # Reset pattern detection state
+        self.transcription_history = []
+        self.temp_timestamps_dict = {}
+        self.duplicate_detection_state = "waiting"
+        self.confirmed_pattern = ""
         
         # Reset foreign language detection counters
         self.foreign_language_rejection_count = 0
@@ -381,7 +565,15 @@ class WhisperStreamingTranscriberWithSpecials:
         Finalize the current sentence and reset buffers
         Use the last transcription as the final sentence
         """
-        sentence_text = final_text if final_text else self.last_transcription
+        # Combine stable buffer with current transcription
+        full_text = self.stable_text_buffer
+        if self.last_transcription:
+            if full_text:
+                full_text += " " + self.last_transcription
+            else:
+                full_text = self.last_transcription
+        
+        sentence_text = final_text if final_text else full_text
         
         if sentence_text and len(sentence_text.strip()) > 3:
             # Clean up the sentence text (remove processing indicators from end only)
@@ -406,15 +598,23 @@ class WhisperStreamingTranscriberWithSpecials:
                 self._send_to_llm(sentence_data['text'])
         
         # Reset for next sentence
-        self.current_sentence_buffer = np.array([], dtype=np.float32)
+        self.stable_text_buffer = ""
+        self.stable_audio_buffer = np.array([], dtype=np.float32)
+        self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
         self.last_word_count = 0
+        
+        # Reset pattern detection state
+        self.transcription_history = []
+        self.temp_timestamps_dict = {}
+        self.duplicate_detection_state = "waiting"
+        self.confirmed_pattern = ""
     
     def _process_audio(self):
-        """Simplified audio processing without silence detection"""
+        """Simplified audio processing with dual buffer management"""
         while self.is_recording:
             try:
                 chunk_count = 0
@@ -446,7 +646,7 @@ class WhisperStreamingTranscriberWithSpecials:
                     if len(self.rolling_buffer) > self.buffer_size:
                         self.rolling_buffer = self.rolling_buffer[-self.buffer_size:]
                 
-                # Add to current sentence buffer
+                # Add to active audio buffer
                 current_time = time.time()
                 if chunk_count > 0:
                     with self.lock:
@@ -458,18 +658,18 @@ class WhisperStreamingTranscriberWithSpecials:
                             latest_audio = np.copy(self.rolling_buffer)
                     
                     if len(latest_audio) > 0:
-                        self.current_sentence_buffer = np.append(self.current_sentence_buffer, latest_audio)
+                        self.active_audio_buffer = np.append(self.active_audio_buffer, latest_audio)
                         
-                        # Limit sentence buffer size (max 60 seconds)
-                        max_sentence_buffer = int(self.RATE * self.max_sentence_duration)
-                        if len(self.current_sentence_buffer) > max_sentence_buffer:
-                            self.current_sentence_buffer = self.current_sentence_buffer[-max_sentence_buffer:]
+                        # Limit active buffer size (max 60 seconds)
+                        max_active_buffer = int(self.RATE * self.max_sentence_duration)
+                        if len(self.active_audio_buffer) > max_active_buffer:
+                            self.active_audio_buffer = self.active_audio_buffer[-max_active_buffer:]
                 
                 # Process during ongoing audio (periodic transcription)
                 min_processing_buffer = int(self.RATE * 0.8)
                 should_process = (
                     (current_time - self.last_transcription_time >= self.processing_interval) and 
-                    len(self.current_sentence_buffer) > min_processing_buffer
+                    len(self.active_audio_buffer) > min_processing_buffer
                 )
                 
                 # Force segmentation if sentence is too long (but only if not waiting for continuation)
@@ -479,7 +679,7 @@ class WhisperStreamingTranscriberWithSpecials:
                     if should_force:
                         print("\n[FORCE SEGMENTATION - Time limit reached]")
                     
-                    self._process_sentence_segment(self.current_sentence_buffer)
+                    self._process_sentence_segment(self.active_audio_buffer)
                     self.last_transcription_time = time.time()
                 
                 # Adaptive sleep
@@ -495,19 +695,19 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _process_sentence_segment(self, audio_buffer):
         """
-        Process a sentence segment with foreign language detection and reset logic
+        Process a sentence segment with dual buffer system and pattern detection
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
             return
         
         try:
-            # Transcribe using OpenAI Whisper
+            # Transcribe using OpenAI Whisper with word-level timestamps
             result = self.model.transcribe(
                 audio_buffer, 
                 fp16=False, 
                 language="en",
-                # This makes Whisper include special tokens like [laughter] and [silence]
+                word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
             
@@ -517,6 +717,9 @@ class WhisperStreamingTranscriberWithSpecials:
                 return
             
             print(f"\n[TRANSCRIPTION] {new_text}")
+            
+            # Extract word-level timestamps
+            word_timestamps = self._extract_word_timestamps(result)
             
             # Check for foreign language or audio annotations
             is_foreign, is_audio_annotation, rejection_reason = self._detect_foreign_language_or_annotation(new_text)
@@ -541,6 +744,9 @@ class WhisperStreamingTranscriberWithSpecials:
                 print(f"[ENGLISH DETECTED] Resetting foreign language rejection counter")
                 self.foreign_language_rejection_count = 0
                 self.last_rejection_time = None
+            
+            # Process pattern detection and buffer management
+            self._process_transcription_pattern(new_text, word_timestamps)
             
             # ALWAYS replace the last transcription with the new one
             self.last_transcription = new_text
@@ -581,7 +787,12 @@ class WhisperStreamingTranscriberWithSpecials:
         """Start streaming from microphone and transcribing"""
         self.is_recording = True
         self.rolling_buffer = np.array([], dtype=np.float32)
-        self.current_sentence_buffer = np.array([], dtype=np.float32)
+        
+        # Initialize dual buffer system
+        self.stable_text_buffer = ""
+        self.stable_audio_buffer = np.array([], dtype=np.float32)
+        self.active_audio_buffer = np.array([], dtype=np.float32)
+        
         self.last_transcription = ""
         self.completed_sentences = []
         self.sentence_start_time = None
@@ -590,6 +801,12 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_word_count = 0
         self.audio_queue = queue.Queue()
         self.last_transcription_time = time.time()
+        
+        # Reset pattern detection state
+        self.transcription_history = []
+        self.temp_timestamps_dict = {}
+        self.duplicate_detection_state = "waiting"
+        self.confirmed_pattern = ""
         
         # Reset foreign language detection state
         self.foreign_language_rejection_count = 0
@@ -616,12 +833,12 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Simplified OpenAI Whisper + Foreign language detection...")
-            print("- Continuous audio processing (no silence detection)")
-            print("- Detects and rejects foreign language transcriptions")
-            print("- Resets state after repeated foreign language detection")
-            print("- Timer starts on punctuation, destroyed on new words")
-            print("- 5-second delay before sending to LLM")
+            print("Listening with Dual Buffer System + Word-Level Timestamps...")
+            print("- Intelligent pattern detection with 3-way confirmation")
+            print("- Automatic stable/active buffer management")
+            print("- Word-level timestamp tracking")
+            print("- Prevents exponential reprocessing")
+            print("- Foreign language detection and reset")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -646,16 +863,16 @@ class WhisperStreamingTranscriberWithSpecials:
             except Exception as e:
                 print(f"Error stopping stream: {e}")
         
-        # Process any remaining audio in current sentence buffer
-        if len(self.current_sentence_buffer) > 0:
+        # Process any remaining audio in active buffer
+        if len(self.active_audio_buffer) > 0:
             try:
                 print("\n[PROCESSING FINAL SEGMENT]")
-                self._process_sentence_segment(self.current_sentence_buffer)
+                self._process_sentence_segment(self.active_audio_buffer)
             except Exception as e:
                 print(f"Error processing final segment: {e}")
         
         # Finalize any pending sentence
-        if self.last_transcription and len(self.last_transcription.strip()) > 3:
+        if self.last_transcription or self.stable_text_buffer:
             print("\n[FINALIZING PENDING SENTENCE]")
             self._finalize_sentence()
         
