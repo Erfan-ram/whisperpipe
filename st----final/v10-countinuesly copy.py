@@ -61,7 +61,6 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Dual Buffer System
         self.stable_text_buffer = ""  # Confirmed text that won't change
-        self.stable_audio_buffer = np.array([], dtype=np.float32)  # Corresponding audio
         self.active_audio_buffer = np.array([], dtype=np.float32)  # Current processing audio
         
         # Transcription tracking for pattern detection
@@ -81,6 +80,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
         self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
         self.punctuation_detected_time = None # When we detected punctuation
+        self.last_stable_buffer_update = None # When stable buffer was last updated
         self.last_word_count = 0              # Track word count to detect new words
         
         # Sentence detection patterns
@@ -198,7 +198,7 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _commit_to_stable_buffer(self, stable_text, end_time):
         """
-        Move confirmed text and corresponding audio to stable buffer
+        Move confirmed text to stable buffer and reset timer
         """
         print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
         print(f"[COMMITTING TO STABLE] End time: {end_time}s")
@@ -209,19 +209,22 @@ class WhisperStreamingTranscriberWithSpecials:
         else:
             self.stable_text_buffer = stable_text
         
-        # Calculate audio samples to move
+        # Update stable buffer timestamp and reset timer if needed
+        self.last_stable_buffer_update = time.time()
+        
+        # If we were waiting for continuation, reset the timer since we have new stable content
+        if self.waiting_for_continuation:
+            print(f"[TIMER RESET] New stable content added, resetting timer")
+            self._destroy_timer()
+        
+        # Calculate audio samples to remove from active buffer
         end_samples = int(end_time * self.RATE)
         
         if len(self.active_audio_buffer) > end_samples:
-            # Move audio to stable buffer
-            audio_to_move = self.active_audio_buffer[:end_samples]
-            self.stable_audio_buffer = np.append(self.stable_audio_buffer, audio_to_move)
-            
             # Keep remaining audio in active buffer
             self.active_audio_buffer = self.active_audio_buffer[end_samples:]
-            
-            print(f"[BUFFER MOVED] Moved {end_time}s of audio to stable buffer")
-            print(f"[BUFFER STATUS] Stable audio: {len(self.stable_audio_buffer)/self.RATE:.1f}s, Active audio: {len(self.active_audio_buffer)/self.RATE:.1f}s")
+            print(f"[BUFFER MOVED] Removed {end_time}s of audio from active buffer")
+            print(f"[BUFFER STATUS] Active audio: {len(self.active_audio_buffer)/self.RATE:.1f}s")
         
         # Debug output as requested
         print(f"\nstable buffer: {self.stable_text_buffer}")
@@ -382,6 +385,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
+        self.last_stable_buffer_update = None
         self.last_word_count = 0
         
         # Reset pattern detection state
@@ -532,24 +536,31 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _should_finalize_after_delay(self):
         """
-        Check if we should finalize after 5-second delay
+        Check if we should finalize after delay
         Only returns True if:
         1. We're waiting for continuation after punctuation
-        2. 5 seconds have passed
-        3. No new words were detected
+        2. 5 seconds have passed since punctuation detection
+        3. No new stable buffer content within delay period
         """
         if not self.waiting_for_continuation or self.punctuation_detected_time is None:
             return False
         
         current_time = time.time()
-        delay_elapsed = current_time - self.punctuation_detected_time
+        punctuation_delay_elapsed = current_time - self.punctuation_detected_time
         
-        # Check if delay period has passed
-        if delay_elapsed >= self.finalization_delay:
-            print(f"[TIMER EXPIRED] {self.finalization_delay}s passed, finalizing sentence")
-            return True
+        # Check if punctuation timer has expired
+        if punctuation_delay_elapsed < self.finalization_delay:
+            return False
         
-        return False
+        # Check if stable buffer was updated recently
+        if self.last_stable_buffer_update is not None:
+            stable_buffer_delay_elapsed = current_time - self.last_stable_buffer_update
+            if stable_buffer_delay_elapsed < self.finalization_delay:
+                print(f"[TIMER CHECK] Punctuation timer expired but stable buffer updated {stable_buffer_delay_elapsed:.1f}s ago - waiting")
+                return False
+        
+        print(f"[TIMER EXPIRED] Both punctuation ({punctuation_delay_elapsed:.1f}s) and stable buffer timers expired, finalizing sentence")
+        return True
     
     def _destroy_timer(self):
         """
@@ -599,12 +610,12 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Reset for next sentence
         self.stable_text_buffer = ""
-        self.stable_audio_buffer = np.array([], dtype=np.float32)
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
+        self.last_stable_buffer_update = None
         self.last_word_count = 0
         
         # Reset pattern detection state
@@ -790,7 +801,6 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Initialize dual buffer system
         self.stable_text_buffer = ""
-        self.stable_audio_buffer = np.array([], dtype=np.float32)
         self.active_audio_buffer = np.array([], dtype=np.float32)
         
         self.last_transcription = ""
@@ -798,6 +808,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.sentence_start_time = None
         self.waiting_for_continuation = False
         self.punctuation_detected_time = None
+        self.last_stable_buffer_update = None
         self.last_word_count = 0
         self.audio_queue = queue.Queue()
         self.last_transcription_time = time.time()
