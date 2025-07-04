@@ -3,8 +3,8 @@
 
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
-Enhanced with Dual Buffer System and Word-Level Timestamp Tracking
-Prevents exponential reprocessing by committing stable portions
+Clean Dual Buffer System with Word-Level Timestamp Tracking
+Simplified LLM sending logic based on buffer states
 """
 import numpy as np
 import pyaudio
@@ -70,22 +70,15 @@ class WhisperStreamingTranscriberWithSpecials:
         self.duplicate_detection_state = "waiting"  # "waiting", "found_duplicate", "confirmed"
         self.confirmed_pattern = ""  # The pattern we've confirmed 3 times
         
-        # Sentence-based segmentation parameters
+        # Basic parameters
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
         self.max_sentence_duration = 60.0  # Max sentence duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
-        # Timer and transcription logic
-        self.last_transcription = ""           # Always keep the LAST transcription only
-        self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
-        self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
-        self.punctuation_detected_time = None # When we detected punctuation
+        # Current transcription state
+        self.last_transcription = ""           # Current transcription
         self.last_word_count = 0              # Track word count to detect new words
-        
-        # Sentence detection patterns
-        self.sentence_endings = ['.', '?', '!']
-        self.pause_endings = [',', ';', ':']  # Shorter pauses, not full sentence breaks
         
         # Processing state
         self.last_transcription_time = time.time()
@@ -227,6 +220,35 @@ class WhisperStreamingTranscriberWithSpecials:
         print(f"\nstable buffer: {self.stable_text_buffer}")
         remaining_text = self.last_transcription[len(stable_text):].strip()
         print(f"active buffer: {remaining_text}")
+        
+        # NEW SIMPLE LOGIC: Check if we should send to LLM
+        self._check_and_send_to_llm()
+    
+    def _check_and_send_to_llm(self):
+        """
+        NEW SIMPLE LOGIC: Send to LLM when stable buffer has content and active buffer is effectively empty
+        """
+        if not self.stable_text_buffer:
+            return
+        
+        # Check if active buffer is effectively empty (no meaningful content being processed)
+        active_content_length = len(self.active_audio_buffer) / self.RATE  # seconds
+        
+        # If active buffer is very small (less than 0.5 seconds) or empty, send to LLM
+        if active_content_length < 0.5:
+            print(f"\n[AUTO SEND TO LLM] Stable buffer ready, active buffer empty/minimal")
+            self._send_to_llm(self.stable_text_buffer)
+            
+            # Clear the stable buffer after sending
+            self._clear_stable_buffer()
+    
+    def _clear_stable_buffer(self):
+        """
+        Clear the stable buffer after sending to LLM
+        """
+        print(f"[CLEARING STABLE BUFFER] Content sent to LLM")
+        self.stable_text_buffer = ""
+        self.stable_audio_buffer = np.array([], dtype=np.float32)
     
     def _process_transcription_pattern(self, new_text, word_timestamps):
         """
@@ -380,8 +402,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
         self.last_word_count = 0
         
         # Reset pattern detection state
@@ -395,22 +415,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_rejection_time = None
         
         print(f"[RESET STATE] Ready for fresh sentence detection")
-    
-    def _is_noise_only_transcription(self, text):
-        """
-        Check if transcription contains only noise annotations (no real speech)
-        """
-        if not text:
-            return True
-        
-        # Remove all parenthetical expressions (noise annotations)
-        cleaned = re.sub(r'\([^)]+\)', '', text).strip()
-        
-        # Remove Whisper special tokens
-        cleaned = re.sub(r'\[[^\]]+\]', '', cleaned).strip()
-        
-        # If nothing left after removing noise annotations, it's noise-only
-        return len(cleaned) < 3
     
     def _count_meaningful_words(self, text):
         """
@@ -445,75 +449,6 @@ class WhisperStreamingTranscriberWithSpecials:
         
         return False
     
-    def _is_processing_indicator(self, text):
-        """
-        Check if text contains processing indicators that should NOT end a sentence
-        """
-        if not text:
-            return False
-        
-        text = text.strip()
-        
-        # Only check for explicit ellipsis patterns at the END of text
-        processing_patterns = [
-            r'\.{3,}\s*$',      # Three or more dots at end: "thinking..."
-            r'\s+\.{2,}\s*$',   # Spaced dots at end: "well .."
-            r'\.{2,}$',         # Two or more dots at end (but not single period)
-        ]
-        
-        # Check each pattern
-        for pattern in processing_patterns:
-            if re.search(pattern, text):
-                return True
-        
-        # Check for specific incomplete phrase patterns
-        incomplete_patterns = [
-            r'\b(um|uh|er|ah)\.{2,}\s*$',     # "um..." at end
-            r'\b(and|so|but|well)\.{2,}\s*$', # "and..." at end
-            r'\b(you know|i mean)\.{2,}\s*$', # "you know..." at end
-        ]
-        
-        text_lower = text.lower()
-        for pattern in incomplete_patterns:
-            if re.search(pattern, text_lower):
-                return True
-        
-        return False
-    
-    def _detect_sentence_end(self, text):
-        """
-        Detect if text contains sentence-ending punctuation
-        Returns: (is_sentence_end, is_pause_point)
-        """
-        if not text:
-            return False, False
-        
-        text = text.strip()
-        
-        # First check if this is a processing indicator - if so, don't end sentence
-        if self._is_processing_indicator(text):
-            print(f"[DEBUG] Processing indicator detected: '{text[-15:]}' - NOT ending sentence")
-            return False, False
-        
-        # Check for real sentence endings
-        has_sentence_end = False
-        has_pause = False
-        
-        # Look for sentence endings in the last few characters
-        for ending in self.sentence_endings:
-            if text.endswith(ending) or text.endswith(ending + ' '):
-                has_sentence_end = True
-                print(f"[DEBUG] Sentence end detected with '{ending}': '{text[-15:]}'")
-                break
-        
-        # Check for pause points (commas, etc.)
-        for ending in self.pause_endings:
-            if text.endswith(ending) or text.endswith(ending + ' '):
-                has_pause = True
-                break
-        
-        return has_sentence_end, has_pause
-    
     def _should_force_segmentation(self):
         """Check if we should force segmentation due to time limits"""
         if self.sentence_start_time is None:
@@ -522,107 +457,12 @@ class WhisperStreamingTranscriberWithSpecials:
         duration = time.time() - self.sentence_start_time
         return duration > self.max_sentence_duration
     
-    def _can_segment(self):
-        """Check if enough time has passed to allow segmentation"""
-        if self.sentence_start_time is None:
-            return True
-        
-        duration = time.time() - self.sentence_start_time
-        return duration > self.min_sentence_duration
-    
-    def _should_finalize_after_delay(self):
-        """
-        Check if we should finalize after 5-second delay
-        Only returns True if:
-        1. We're waiting for continuation after punctuation
-        2. 5 seconds have passed
-        3. No new words were detected
-        """
-        if not self.waiting_for_continuation or self.punctuation_detected_time is None:
-            return False
-        
-        current_time = time.time()
-        delay_elapsed = current_time - self.punctuation_detected_time
-        
-        # Check if delay period has passed
-        if delay_elapsed >= self.finalization_delay:
-            print(f"[TIMER EXPIRED] {self.finalization_delay}s passed, finalizing sentence")
-            return True
-        
-        return False
-    
-    def _destroy_timer(self):
-        """
-        Destroy the current timer and reset waiting state
-        """
-        if self.waiting_for_continuation:
-            print(f"[TIMER DESTROYED] New words detected, cancelling timer")
-            self.waiting_for_continuation = False
-            self.punctuation_detected_time = None
-    
-    def _finalize_sentence(self, final_text=None):
-        """
-        Finalize the current sentence and reset buffers
-        Use the last transcription as the final sentence
-        """
-        # Combine stable buffer with current transcription
-        full_text = self.stable_text_buffer
-        if self.last_transcription:
-            if full_text:
-                full_text += " " + self.last_transcription
-            else:
-                full_text = self.last_transcription
-        
-        sentence_text = final_text if final_text else full_text
-        
-        if sentence_text and len(sentence_text.strip()) > 3:
-            # Clean up the sentence text (remove processing indicators from end only)
-            cleaned_text = sentence_text.strip()
-            
-            # Remove trailing ellipsis or incomplete processing indicators
-            cleaned_text = re.sub(r'\.{2,}\s*$', '', cleaned_text)  # Remove trailing ellipsis
-            cleaned_text = re.sub(r'\s+(um|uh|and|so|but|well)\.{2,}\s*$', '', cleaned_text, flags=re.IGNORECASE)
-            
-            if len(cleaned_text.strip()) > 3:  # Only process if we still have meaningful content
-                # Store completed sentence
-                sentence_data = {
-                    'text': cleaned_text.strip(),
-                    'timestamp': time.strftime('%H:%M:%S'),
-                    'duration': time.time() - self.sentence_start_time if self.sentence_start_time else 0
-                }
-                self.completed_sentences.append(sentence_data)
-                
-                print(f"\n[SENTENCE COMPLETE] {sentence_data['text']}")
-                
-                # Send to LLM immediately
-                self._send_to_llm(sentence_data['text'])
-        
-        # Reset for next sentence
-        self.stable_text_buffer = ""
-        self.stable_audio_buffer = np.array([], dtype=np.float32)
-        self.active_audio_buffer = np.array([], dtype=np.float32)
-        self.last_transcription = ""
-        self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
-        self.last_word_count = 0
-        
-        # Reset pattern detection state
-        self.transcription_history = []
-        self.temp_timestamps_dict = {}
-        self.duplicate_detection_state = "waiting"
-        self.confirmed_pattern = ""
-    
     def _process_audio(self):
         """Simplified audio processing with dual buffer management"""
         while self.is_recording:
             try:
                 chunk_count = 0
                 start_time = time.time()
-                
-                # Check if we should finalize after delay period
-                if self._should_finalize_after_delay():
-                    self._finalize_sentence()
                 
                 # Check if we should reset due to foreign language detection
                 if self._should_reset_due_to_foreign_language():
@@ -672,8 +512,8 @@ class WhisperStreamingTranscriberWithSpecials:
                     len(self.active_audio_buffer) > min_processing_buffer
                 )
                 
-                # Force segmentation if sentence is too long (but only if not waiting for continuation)
-                should_force = self._should_force_segmentation() and not self.waiting_for_continuation
+                # Force segmentation if sentence is too long
+                should_force = self._should_force_segmentation()
                 
                 if should_process or should_force:
                     if should_force:
@@ -751,27 +591,8 @@ class WhisperStreamingTranscriberWithSpecials:
             # ALWAYS replace the last transcription with the new one
             self.last_transcription = new_text
             
-            # Check if we have new words (this will destroy timer if active)
-            if self._has_new_words(new_text):
-                self._destroy_timer()
-            
-            # Check for sentence ending
-            is_sentence_end, is_pause = self._detect_sentence_end(new_text)
-            
-            # Start timer ONLY if:
-            # 1. We see sentence ending punctuation
-            # 2. We can segment (time requirements met)
-            # 3. It's not just noise
-            # 4. We're not already waiting
-            if (is_sentence_end and 
-                self._can_segment() and 
-                not self._is_noise_only_transcription(new_text) and 
-                not self.waiting_for_continuation):
-                
-                # Start the timer
-                self.waiting_for_continuation = True
-                self.punctuation_detected_time = time.time()
-                print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s timer...")
+            # Check if we have new words
+            self._has_new_words(new_text)
             
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
@@ -782,6 +603,14 @@ class WhisperStreamingTranscriberWithSpecials:
         # Your LLM integration code here
         # Example: response = your_llm_model.generate_answer(text)
         # print(f"[LLM RESPONSE]: {response}")
+        
+        # Store completed sentence for summary
+        sentence_data = {
+            'text': text.strip(),
+            'timestamp': time.strftime('%H:%M:%S'),
+            'duration': time.time() - self.sentence_start_time if self.sentence_start_time else 0
+        }
+        self.completed_sentences.append(sentence_data)
     
     def start_streaming(self):
         """Start streaming from microphone and transcribing"""
@@ -796,8 +625,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_transcription = ""
         self.completed_sentences = []
         self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
         self.last_word_count = 0
         self.audio_queue = queue.Queue()
         self.last_transcription_time = time.time()
@@ -833,12 +660,12 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Dual Buffer System + Word-Level Timestamps...")
+            print("Listening with Clean Dual Buffer System...")
             print("- Intelligent pattern detection with 3-way confirmation")
             print("- Automatic stable/active buffer management")
             print("- Word-level timestamp tracking")
-            print("- Prevents exponential reprocessing")
-            print("- Foreign language detection and reset")
+            print("- Auto-send to LLM when stable buffer ready")
+            print("- No punctuation or timer dependencies!")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -871,10 +698,10 @@ class WhisperStreamingTranscriberWithSpecials:
             except Exception as e:
                 print(f"Error processing final segment: {e}")
         
-        # Finalize any pending sentence
-        if self.last_transcription or self.stable_text_buffer:
-            print("\n[FINALIZING PENDING SENTENCE]")
-            self._finalize_sentence()
+        # Send any remaining content in stable buffer
+        if self.stable_text_buffer:
+            print("\n[SENDING FINAL STABLE BUFFER]")
+            self._send_to_llm(self.stable_text_buffer)
         
         # Wait for processing thread to finish
         if self.process_thread and self.process_thread.is_alive():
