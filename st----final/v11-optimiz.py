@@ -3,8 +3,8 @@
 
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
-Clean Dual Buffer System with Word-Level Timestamp Tracking
-Simplified LLM sending logic based on buffer states
+Optimized Dual Buffer System - Text Only Stable Buffer
+Memory efficient: Only keeps stable text, discards processed audio
 """
 import numpy as np
 import pyaudio
@@ -59,10 +59,9 @@ class WhisperStreamingTranscriberWithSpecials:
         self.rolling_buffer = np.array([], dtype=np.float32)
         self.is_recording = False
         
-        # Dual Buffer System
+        # Optimized Buffer System - TEXT ONLY
         self.stable_text_buffer = ""  # Confirmed text that won't change
-        self.stable_audio_buffer = np.array([], dtype=np.float32)  # Corresponding audio
-        self.active_audio_buffer = np.array([], dtype=np.float32)  # Current processing audio
+        self.active_audio_buffer = np.array([], dtype=np.float32)  # Current processing audio ONLY
         
         # Transcription tracking for pattern detection
         self.transcription_history = []  # Store last few transcriptions
@@ -74,7 +73,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
         self.max_sentence_duration = 60.0  # Max sentence duration
-        self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
         # Current transcription state
         self.last_transcription = ""           # Current transcription
@@ -191,10 +189,10 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _commit_to_stable_buffer(self, stable_text, end_time):
         """
-        Move confirmed text and corresponding audio to stable buffer
+        Move confirmed text to stable buffer and trim audio efficiently
+        OPTIMIZED: Only keep text, discard processed audio to save memory
         """
         print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
-        print(f"[COMMITTING TO STABLE] End time: {end_time}s")
         
         # Add to stable text buffer
         if self.stable_text_buffer:
@@ -202,31 +200,29 @@ class WhisperStreamingTranscriberWithSpecials:
         else:
             self.stable_text_buffer = stable_text
         
-        # Calculate audio samples to move
+        # OPTIMIZED: Trim processed audio from active buffer (don't store it)
         end_samples = int(end_time * self.RATE)
         
         if len(self.active_audio_buffer) > end_samples:
-            # Move audio to stable buffer
-            audio_to_move = self.active_audio_buffer[:end_samples]
-            self.stable_audio_buffer = np.append(self.stable_audio_buffer, audio_to_move)
-            
-            # Keep remaining audio in active buffer
+            # Keep only unprocessed audio in active buffer
             self.active_audio_buffer = self.active_audio_buffer[end_samples:]
-            
-            print(f"[BUFFER MOVED] Moved {end_time}s of audio to stable buffer")
-            print(f"[BUFFER STATUS] Stable audio: {len(self.stable_audio_buffer)/self.RATE:.1f}s, Active audio: {len(self.active_audio_buffer)/self.RATE:.1f}s")
+            print(f"[AUDIO TRIMMED] Removed {end_time}s of processed audio")
+        else:
+            # If end_time exceeds buffer, clear all processed audio
+            self.active_audio_buffer = np.array([], dtype=np.float32)
+            print(f"[AUDIO CLEARED] All audio processed")
         
-        # Debug output as requested
+        # Clean debug output as requested
         print(f"\nstable buffer: {self.stable_text_buffer}")
         remaining_text = self.last_transcription[len(stable_text):].strip()
         print(f"active buffer: {remaining_text}")
         
-        # NEW SIMPLE LOGIC: Check if we should send to LLM
+        # Check if we should send to LLM
         self._check_and_send_to_llm()
     
     def _check_and_send_to_llm(self):
         """
-        NEW SIMPLE LOGIC: Send to LLM when stable buffer has content and active buffer is effectively empty
+        OPTIMIZED: Send to LLM when stable buffer has content and active buffer is minimal
         """
         if not self.stable_text_buffer:
             return
@@ -236,7 +232,7 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # If active buffer is very small (less than 0.5 seconds) or empty, send to LLM
         if active_content_length < 0.5:
-            print(f"\n[AUTO SEND TO LLM] Stable buffer ready, active buffer empty/minimal")
+            print(f"\n[AUTO SEND TO LLM] Stable buffer ready")
             self._send_to_llm(self.stable_text_buffer)
             
             # Clear the stable buffer after sending
@@ -245,10 +241,10 @@ class WhisperStreamingTranscriberWithSpecials:
     def _clear_stable_buffer(self):
         """
         Clear the stable buffer after sending to LLM
+        OPTIMIZED: Only clear text (no audio to clear)
         """
-        print(f"[CLEARING STABLE BUFFER] Content sent to LLM")
+        print(f"[STABLE BUFFER CLEARED] Content sent to LLM")
         self.stable_text_buffer = ""
-        self.stable_audio_buffer = np.array([], dtype=np.float32)
     
     def _process_transcription_pattern(self, new_text, word_timestamps):
         """
@@ -276,7 +272,6 @@ class WhisperStreamingTranscriberWithSpecials:
             if self.duplicate_detection_state == "waiting":
                 # First time we see a duplicate
                 print(f"\n[DUPLICATE DETECTED] Common text: '{common_prefix}'")
-                print(f"[SAVING TIMESTAMPS] Waiting for 3rd confirmation...")
                 
                 # Save word timestamps for this pattern
                 self.temp_timestamps_dict = word_timestamps.copy()
@@ -366,7 +361,6 @@ class WhisperStreamingTranscriberWithSpecials:
                 return False, True, f"Audio annotation: {pattern}"
         
         # Pattern 3: Check if transcription is MOSTLY parenthetical content
-        # Remove all parenthetical and bracketed content
         cleaned_text = re.sub(r'\([^)]*\)', '', text_clean)
         cleaned_text = re.sub(r'\[[^\]]*\]', '', cleaned_text)
         cleaned_text = cleaned_text.strip()
@@ -394,11 +388,11 @@ class WhisperStreamingTranscriberWithSpecials:
     def _reset_sentence_state(self, reason="Foreign language detection"):
         """
         Reset the current sentence state and clear buffers
+        OPTIMIZED: Only clear necessary data
         """
         print(f"\n[RESET STATE] {reason}")
-        print(f"[RESET STATE] Clearing buffers and resetting state")
         
-        # Clear all sentence-related state
+        # Clear sentence-related state
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
@@ -414,7 +408,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.foreign_language_rejection_count = 0
         self.last_rejection_time = None
         
-        print(f"[RESET STATE] Ready for fresh sentence detection")
+        print(f"[RESET STATE] Ready for fresh detection")
     
     def _count_meaningful_words(self, text):
         """
@@ -458,7 +452,9 @@ class WhisperStreamingTranscriberWithSpecials:
         return duration > self.max_sentence_duration
     
     def _process_audio(self):
-        """Simplified audio processing with dual buffer management"""
+        """
+        OPTIMIZED: Simplified audio processing focused on efficiency
+        """
         while self.is_recording:
             try:
                 chunk_count = 0
@@ -490,7 +486,6 @@ class WhisperStreamingTranscriberWithSpecials:
                 current_time = time.time()
                 if chunk_count > 0:
                     with self.lock:
-                        # Ensure we use integer indices for slicing
                         chunk_samples = int(self.CHUNK * chunk_count)
                         if len(self.rolling_buffer) >= chunk_samples:
                             latest_audio = np.copy(self.rolling_buffer[-chunk_samples:])
@@ -522,7 +517,7 @@ class WhisperStreamingTranscriberWithSpecials:
                     self._process_sentence_segment(self.active_audio_buffer)
                     self.last_transcription_time = time.time()
                 
-                # Adaptive sleep
+                # Optimized sleep
                 elapsed = time.time() - start_time
                 sleep_time = max(0.01, 0.05 - elapsed)
                 time.sleep(sleep_time)
@@ -535,7 +530,7 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _process_sentence_segment(self, audio_buffer):
         """
-        Process a sentence segment with dual buffer system and pattern detection
+        OPTIMIZED: Process sentence segment efficiently
         """
         min_segment_size = int(self.RATE * 0.3)
         if len(audio_buffer) < min_segment_size:
@@ -588,7 +583,7 @@ class WhisperStreamingTranscriberWithSpecials:
             # Process pattern detection and buffer management
             self._process_transcription_pattern(new_text, word_timestamps)
             
-            # ALWAYS replace the last transcription with the new one
+            # Replace the last transcription with the new one
             self.last_transcription = new_text
             
             # Check if we have new words
@@ -617,9 +612,8 @@ class WhisperStreamingTranscriberWithSpecials:
         self.is_recording = True
         self.rolling_buffer = np.array([], dtype=np.float32)
         
-        # Initialize dual buffer system
-        self.stable_text_buffer = ""
-        self.stable_audio_buffer = np.array([], dtype=np.float32)
+        # Initialize optimized buffer system
+        self.stable_text_buffer = ""  # TEXT ONLY - no audio storage
         self.active_audio_buffer = np.array([], dtype=np.float32)
         
         self.last_transcription = ""
@@ -660,12 +654,11 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Clean Dual Buffer System...")
-            print("- Intelligent pattern detection with 3-way confirmation")
-            print("- Automatic stable/active buffer management")
-            print("- Word-level timestamp tracking")
-            print("- Auto-send to LLM when stable buffer ready")
-            print("- No punctuation or timer dependencies!")
+            print("Listening with Optimized Memory-Efficient System...")
+            print("- Text-only stable buffer (no audio waste)")
+            print("- Intelligent pattern detection")
+            print("- Memory optimized for long conversations")
+            print("- Auto-send to LLM when ready")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
