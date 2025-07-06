@@ -132,8 +132,8 @@ class WhisperStreamingTranscriberWithSpecials:
             return ""
         
         # Split into words for better comparison
-        words1 = text1.split()
-        words2 = text2.split()
+        words1 = text1.lower().split()
+        words2 = text2.lower().split()
         
         common_words = []
         for i in range(min(len(words1), len(words2))):
