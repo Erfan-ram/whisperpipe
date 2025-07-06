@@ -245,11 +245,6 @@ class WhisperStreamingTranscriberWithSpecials:
         if len(self.transcription_history) > 3:
             self.transcription_history.pop(0)
         
-        # Debug: show transcription history
-        print(f"[TRANSCRIPTION HISTORY] Length: {len(self.transcription_history)}")
-        for i, text in enumerate(self.transcription_history):
-            print(f"  [{i}]: '{text[:50]}{'...' if len(text) > 50 else ''}'")
-        
         # Need at least 2 transcriptions to compare
         if len(self.transcription_history) < 2:
             return
@@ -259,9 +254,6 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Find common prefix between current and previous
         common_prefix = self._find_longest_common_prefix(previous_text, current_text)
-        
-        # Debug output to match issue description
-        print(f"DEBUG: Found common prefix: '{common_prefix}' and length {len(common_prefix)}")
         
         if len(common_prefix) > 10:  # Only consider meaningful common prefixes
             
