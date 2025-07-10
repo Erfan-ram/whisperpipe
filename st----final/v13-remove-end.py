@@ -6,6 +6,7 @@ Real-time speech-to-text streaming with OpenAI Whisper using a local model
 Enhanced with Dual Buffer System (Text Only) and Simplified Timer Logic
 Prevents exponential reprocessing by committing stable portions
 Simplified to use only stable buffer delay timing
+Fixed: Preserve stable buffer during noise rejections
 """
 import numpy as np
 import pyaudio
@@ -78,7 +79,7 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Simplified Timer Logic - Only stable buffer based
         self.last_transcription = ""           # Always keep the LAST transcription only
-        self.finalization_delay = 10.0        # Wait 10 seconds after last stable buffer update
+        self.finalization_delay = 5.0        # Wait 5 seconds after last stable buffer update
         self.last_stable_buffer_update = None # When stable buffer was last updated
         self.last_word_count = 0              # Track word count to detect new words
         
@@ -200,7 +201,7 @@ class WhisperStreamingTranscriberWithSpecials:
     def _commit_to_stable_buffer(self, stable_text, end_time):
         """
         Move confirmed text to stable buffer and update audio buffer
-        Enhanced: Only keep text buffer, reset timer on stable buffer updates
+        IMPORTANT: Reset stable buffer timer when new content is added
         """
         print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
         print(f"[COMMITTING TO STABLE] End time: {end_time}s")
@@ -211,16 +212,21 @@ class WhisperStreamingTranscriberWithSpecials:
         else:
             self.stable_text_buffer = stable_text
             
+        # Show time before reset
         time_now = time.time()
-        time_passed_before_commit = time_now - self.last_stable_buffer_update if self.last_stable_buffer_update else 0
-        print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
+        if self.last_stable_buffer_update:
+            time_passed_before_commit = time_now - self.last_stable_buffer_update
+            print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
         
-        # Update stable buffer timestamp - this resets the finalization timer
+        # CRITICAL: Reset stable buffer timer when new content is committed
         self.last_stable_buffer_update = time.time()
+        print(f"\033[93m[TIMER RESET] Stable buffer timer reset due to new content commit\033[0m")
         
         # Calculate audio samples to remove from active buffer with overlap
-        alpha = 0.1  # 10% overlap factor to prevent cutting off audio mid-word
-        end_samples = int(end_time * self.RATE * (1 - alpha))
+        # alpha = 0.1  # 10% overlap factor to prevent cutting
+        
+        end_samples_without_overlap = int(end_time * self.RATE)
+        end_samples = end_samples_without_overlap
         
         if len(self.active_audio_buffer) > end_samples:
             # Keep remaining audio in active buffer
@@ -284,7 +290,7 @@ class WhisperStreamingTranscriberWithSpecials:
                         end_time = self._find_last_word_end_time(self.confirmed_pattern, self.temp_timestamps_dict)
                         
                         if end_time is not None:
-                            # Commit to stable buffer
+                            # Commit to stable buffer (this will reset the timer)
                             self._commit_to_stable_buffer(self.confirmed_pattern, end_time)
                             
                             # Reset state for next pattern detection
@@ -391,16 +397,18 @@ class WhisperStreamingTranscriberWithSpecials:
     def _reset_sentence_state(self, reason="Foreign language detection"):
         """
         Reset the current sentence state and clear buffers
+        FIXED: Only clear active components, preserve stable buffer and timer
         """
         print(f"\n[RESET STATE] {reason}")
-        print(f"[RESET STATE] Clearing buffers and resetting state")
+        print(f"[RESET STATE] Clearing ONLY active components, preserving stable buffer")
         
-        # Clear all sentence-related state
-        self.stable_text_buffer = ""  # Clear stable text buffer too
+        # PRESERVE stable text buffer and timer - DO NOT CLEAR THESE
+        # self.stable_text_buffer = ""  # DON'T CLEAR - preserve good content
+        # self.last_stable_buffer_update = None  # DON'T CLEAR - preserve timer
+        
+        # Clear only active/volatile state
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
-        self.sentence_start_time = None
-        self.last_stable_buffer_update = None
         self.last_word_count = 0
         
         # Reset pattern detection state
@@ -413,6 +421,10 @@ class WhisperStreamingTranscriberWithSpecials:
         self.foreign_language_rejection_count = 0
         self.last_rejection_time = None
         
+        print(f"[RESET STATE] Stable buffer preserved: '{self.stable_text_buffer}'")
+        if self.last_stable_buffer_update:
+            elapsed = time.time() - self.last_stable_buffer_update
+            print(f"[RESET STATE] Timer continues: {elapsed:.1f}s since last stable update")
         print(f"[RESET STATE] Ready for fresh sentence detection")
     
     def _is_noise_only_transcription(self, text):
@@ -565,6 +577,12 @@ class WhisperStreamingTranscriberWithSpecials:
         if should_finalize:
             print(f"[TIMER EXPIRED] Stable buffer delay: {stable_buffer_delay_elapsed:.1f}s - finalizing sentence")
             return True
+        # optinal for debug
+        # else:
+        #     # Show countdown for debugging (less frequently)
+        #     remaining = self.finalization_delay - stable_buffer_delay_elapsed
+        #     if int(remaining * 10) % 5 == 0:  # Show every 0.5 seconds
+        #         print(f"[TIMER] {remaining:.1f}s remaining until finalization")
         
         return False
     
@@ -610,7 +628,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
-        self.last_stable_buffer_update = None
+        self.last_stable_buffer_update = None  # Reset timer
         self.last_word_count = 0
         
         # Reset pattern detection state
@@ -762,9 +780,9 @@ class WhisperStreamingTranscriberWithSpecials:
                 print(f"[NEW WORDS] Detected new words in transcription")
             
             # Detect sentence ending for logging purposes (no timer activation)
-            is_sentence_end, is_pause = self._detect_sentence_end(new_text)
-            if is_sentence_end:
-                print(f"[SENTENCE END DETECTED] But relying only on stable buffer timing")
+            # is_sentence_end, is_pause = self._detect_sentence_end(new_text)
+            # if is_sentence_end:
+            #     print(f"[SENTENCE END DETECTED] But relying only on stable buffer timing")
             
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
@@ -824,9 +842,11 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Simplified Dual Buffer System...")
+            print("Listening with Fixed Dual Buffer System...")
             print("- Text-only stable buffer (no audio buffer)")
             print("- Simplified timer based ONLY on stable buffer updates")
+            print("- Timer RESETS when new content is committed to stable buffer")
+            print("- FIXED: Stable buffer preserved during noise rejections")
             print("- Intelligent pattern detection with 3-way confirmation")
             print("- Prevents exponential reprocessing")
             print("- Foreign language detection and reset")
