@@ -77,11 +77,9 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Enhanced Timer and transcription logic - Synced with stable buffer
         self.last_transcription = ""           # Always keep the LAST transcription only
-        self.waiting_for_continuation = False  # Flag if we're waiting after punctuation
         # self.finalization_delay = 5.0         # Wait 5 seconds after punctuation
         # self.finalization_delay = 12.0         # Wait 12q seconds after punctuation
-        self.finalization_delay = 10.0         # Wait 10 seconds after punctuation
-        self.punctuation_detected_time = None # When we detected punctuation
+        self.finalization_delay = 10.0         # Wait 10 seconds after stable buffer update
         self.last_stable_buffer_update = None # When stable buffer was last updated
         self.last_word_count = 0              # Track word count to detect new words
         
@@ -215,16 +213,11 @@ class WhisperStreamingTranscriberWithSpecials:
             self.stable_text_buffer = stable_text
             
         time_now = time.time()
-        time_passed_before_commit = time_now - self.last_stable_buffer_update
-        print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
+        if self.last_stable_buffer_update is not None:
+            time_passed_before_commit = time_now - self.last_stable_buffer_update
+            print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
         # Update stable buffer timestamp
         self.last_stable_buffer_update = time.time()
-
-        # IMPORTANT: Reset timer when new stable content is added
-        if self.waiting_for_continuation:
-            print(f"[TIMER RESET] New stable content added, resetting punctuation timer")
-            self.waiting_for_continuation = False
-            self.punctuation_detected_time = None
         
         # Calculate audio samples to remove from active buffer with overlap
         # alpha = 0.05  # 5% overlap factor to prevent cutting off audio mid-word
@@ -414,8 +407,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
         self.last_stable_buffer_update = None
         self.last_word_count = 0
         
@@ -568,49 +559,20 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _should_finalize_after_delay(self):
         """
-        Enhanced: Check if we should finalize based on stable buffer updates
-        Only returns True if:
-        1. We're waiting for continuation after punctuation
-        2. 5 seconds have passed since punctuation detection
-        3. 5 seconds have passed since last stable buffer update (or no updates)
+        Check if we should finalize based on stable buffer updates only
+        Returns True if 10 seconds have passed since last stable buffer update
         """
-        if not self.waiting_for_continuation or self.punctuation_detected_time is None:
+        if self.last_stable_buffer_update is None:
             return False
         
         current_time = time.time()
+        stable_buffer_delay_elapsed = current_time - self.last_stable_buffer_update
         
-        # Check if punctuation delay has passed
-        punctuation_delay_elapsed = current_time - self.punctuation_detected_time
-        
-        # Check if stable buffer delay has passed (if we have updates)
-        stable_buffer_delay_elapsed = float('inf')  # Default to "passed" if no updates
-        if self.last_stable_buffer_update is not None:
-            stable_buffer_delay_elapsed = current_time - self.last_stable_buffer_update
-        
-        # Both delays must have passed
-        # both_delays_passed = (
-        #     punctuation_delay_elapsed >= self.finalization_delay and
-        #     stable_buffer_delay_elapsed >= self.finalization_delay
-        # )
-        both_delays_passed = (
-            # punctuation_delay_elapsed >= self.finalization_delay and
-            stable_buffer_delay_elapsed >= self.finalization_delay
-        )
-        
-        if both_delays_passed:
-            print(f"[TIMER EXPIRED] Punctuation: {punctuation_delay_elapsed:.1f}s, Stable buffer: {stable_buffer_delay_elapsed:.1f}s - finalizing sentence")
+        if stable_buffer_delay_elapsed >= self.finalization_delay:
+            print(f"[TIMER EXPIRED] Stable buffer: {stable_buffer_delay_elapsed:.1f}s - finalizing sentence")
             return True
         
         return False
-    
-    def _destroy_timer(self):
-        """
-        Destroy the current timer and reset waiting state
-        """
-        if self.waiting_for_continuation:
-            print(f"[TIMER DESTROYED] New words detected, cancelling timer")
-            self.waiting_for_continuation = False
-            self.punctuation_detected_time = None
     
     def _finalize_sentence(self, final_text=None):
         """
@@ -654,8 +616,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.active_audio_buffer = np.array([], dtype=np.float32)
         self.last_transcription = ""
         self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
         self.last_stable_buffer_update = None
         self.last_word_count = 0
         
@@ -724,8 +684,8 @@ class WhisperStreamingTranscriberWithSpecials:
                     len(self.active_audio_buffer) > min_processing_buffer
                 )
                 
-                # Force segmentation if sentence is too long (but only if not waiting for continuation)
-                should_force = self._should_force_segmentation() and not self.waiting_for_continuation
+                # Force segmentation if sentence is too long
+                should_force = self._should_force_segmentation()
                 
                 if should_process or should_force:
                     if should_force:
@@ -803,32 +763,11 @@ class WhisperStreamingTranscriberWithSpecials:
             # ALWAYS replace the last transcription with the new one
             self.last_transcription = new_text
             
-            # Check if we have new words (this will destroy timer if active)
-            if self._has_new_words(new_text):
-                self._destroy_timer()
+            # Check if we have new words - no longer needed for timer destruction
+            self._has_new_words(new_text)
             
-            # Check for sentence ending - Enhanced logic for stable buffer sync
+            # Check for sentence ending - keep for other purposes but don't start timer
             is_sentence_end, is_pause = self._detect_sentence_end(new_text)
-            
-            # Start timer ONLY if:
-            # 1. We see sentence ending punctuation
-            # 2. We can segment (time requirements met)
-            # 3. It's not just noise
-            # 4. We're not already waiting
-            if (is_sentence_end and 
-                self._can_segment() and 
-                not self._is_noise_only_transcription(new_text) and 
-                not self.waiting_for_continuation):
-                
-                # Start the timer
-                self.waiting_for_continuation = True
-                self.punctuation_detected_time = time.time()
-                
-                # Set initial stable buffer update time if not set
-                if self.last_stable_buffer_update is None:
-                    self.last_stable_buffer_update = time.time()
-                
-                print(f"[PUNCTUATION DETECTED] Starting {self.finalization_delay}s timer (synced with stable buffer)...")
             
         except Exception as e:
             print(f"Error in sentence segment processing: {e}")
@@ -852,8 +791,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.last_transcription = ""
         self.completed_sentences = []
         self.sentence_start_time = None
-        self.waiting_for_continuation = False
-        self.punctuation_detected_time = None
         self.last_stable_buffer_update = None
         self.last_word_count = 0
         self.audio_queue = queue.Queue()
@@ -890,13 +827,13 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Enhanced Dual Buffer System + Smart Timer...")
+            print("Listening with Enhanced Dual Buffer System + Stable Buffer Timing...")
             print("- Text-only stable buffer (no audio buffer)")
-            print("- Smart timer synced with stable buffer updates")
+            print("- Simplified timing based only on stable buffer updates")
             print("- Intelligent pattern detection with 3-way confirmation")
             print("- Prevents exponential reprocessing")
             print("- Foreign language detection and reset")
-            print("- LLM sending only when punctuation + no new stable content")
+            print("- LLM sending when 10 seconds pass since last stable content")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
