@@ -465,8 +465,8 @@ class WhisperStreamingTranscriberWithSpecials:
         Timer states:
         - INACTIVE: word_count = 0, timer not running
         - ACTIVATE: word_count 0 → n, start timer
-        - RESET: word_count n → n (same), reset timer
-        - CONTINUE: word_count n → m (different), reset timer
+        - RESET: word_count n → m (where m > n), reset timer ONLY when increasing
+        - NO RESET: word_count n → n (same) or n → m (where m < n), keep timer running
         """
         current_word_count = self._count_meaningful_words(current_transcription)
         
@@ -489,20 +489,27 @@ class WhisperStreamingTranscriberWithSpecials:
             self.timer_is_active = True
             return True
         
-        # Case 3: Same word count (n → n) - reset timer
+        # Case 3: Same word count (n → n) - DON'T reset timer, just continue
         if current_word_count == self.last_word_count:
             if self.timer_is_active:
-                print(f"[NEW WORDS DETECTED] Word count: {self.last_word_count} → {current_word_count}")
-                print(f"\033[94m[WORD TIMER RESET] Same word count detected, resetting timer ({current_word_count} → {current_word_count})\033[0m")
-                self.last_new_word_time = time.time()
-                return True
+                print(f"[SAME WORD COUNT] {current_word_count} → {current_word_count} - timer continues (no reset)")
+                # DON'T reset: self.last_new_word_time = time.time()
+                return False
             return False
         
-        # Case 4: Different word count (n → m) - reset timer
-        if current_word_count != self.last_word_count:
+        # Case 4: Word count decreased (n → m where m < n) - DON'T reset timer
+        if current_word_count < self.last_word_count:
+            if self.timer_is_active:
+                print(f"[WORD COUNT DECREASED] {self.last_word_count} → {current_word_count} - timer continues (no reset)")
+                # DON'T reset: self.last_new_word_time = time.time()
+            self.last_word_count = current_word_count
+            return False
+        
+        # Case 5: Word count increased (n → m where m > n) - ONLY time we reset timer
+        if current_word_count > self.last_word_count:
             print(f"[NEW WORDS DETECTED] Word count: {self.last_word_count} → {current_word_count}")
             if self.timer_is_active:
-                print(f"\033[94m[WORD TIMER RESET] Word count changed, resetting timer ({self.last_word_count} → {current_word_count})\033[0m")
+                print(f"\033[94m[WORD TIMER RESET] Word count INCREASED, resetting timer ({self.last_word_count} → {current_word_count})\033[0m")
                 self.last_new_word_time = time.time()
             else:
                 print(f"\033[96m[WORD TIMER ACTIVATED] Activating timer ({self.last_word_count} → {current_word_count})\033[0m")
@@ -513,7 +520,7 @@ class WhisperStreamingTranscriberWithSpecials:
             return True
         
         return False
-    
+
     def _is_processing_indicator(self, text):
         """
         Check if text contains processing indicators that should NOT end a sentence
@@ -617,11 +624,12 @@ class WhisperStreamingTranscriberWithSpecials:
         if should_finalize:
             print(f"[NO NEW WORDS TIMER EXPIRED] {no_new_words_elapsed:.1f}s since last word activity - finalizing sentence")
             return True
-        else:
-            # Show countdown for debugging (less frequently)
-            remaining = self.no_new_words_delay - no_new_words_elapsed
-            if int(remaining * 10) % 10 == 0:  # Show every 1 second
-                print(f"[NO NEW WORDS TIMER] {remaining:.1f}s remaining until finalization")
+        #  optional for timer debuger
+        # else:
+        #     # Show countdown for debugging (less frequently)
+        #     remaining = self.no_new_words_delay - no_new_words_elapsed
+        #     if int(remaining * 10) % 10 == 0:  # Show every 1 second
+        #         print(f"[NO NEW WORDS TIMER] {remaining:.1f}s remaining until finalization")
         
         return False
     
