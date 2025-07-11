@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-
+# it should be added v12 mine op similarity
 """
 Real-time speech-to-text streaming with OpenAI Whisper using a local model
 Enhanced with Dual Buffer System (Text Only) and Smart Word Detection Timer
