@@ -148,6 +148,171 @@ class WhisperStreamingTranscriberWithSpecials:
         
         return res
     
+    def _find_longest_common_prefix_with_similarity(self, text1, text2, min_similarity=0.8, return_from="text1", label=""):
+        """
+        Find the longest common prefix between two transcriptions using similarity scoring
+        Returns the common text portion based on similarity threshold
+        
+        Args:
+            text1, text2: Input texts to compare
+            min_similarity: Minimum similarity threshold (0.0 to 1.0)
+            return_from: "text1" or "text2" - which text to return words from
+            label: Debug label for logging
+        
+        Returns:
+            String: The longest prefix that maintains the similarity threshold
+        """
+        if not text1 or not text2:
+            return ""
+        
+        # Split into words for comparison
+        words1 = text1.lower().split()
+        words2 = text2.lower().split()
+        original_words1 = text1.split()
+        original_words2 = text2.split()
+        
+        if not words1 or not words2:
+            return ""
+        
+        common_words = []
+        total_comparisons = 0
+        similar_matches = 0
+        
+        # Compare words from the beginning
+        max_length = min(len(words1), len(words2))
+        
+        for i in range(max_length):
+            word1 = words1[i]
+            word2 = words2[i]
+            total_comparisons += 1
+            
+            # Calculate similarity for this word pair
+            word_similarity = self._calculate_word_similarity(word1, word2)
+            
+            # If words are similar enough, count as match
+            if word_similarity >= min_similarity:
+                similar_matches += 1
+                # Use words from specified text
+                if return_from == "text2":
+                    original_word = original_words2[i] if i < len(original_words2) else word2
+                else:
+                    original_word = original_words1[i] if i < len(original_words1) else word1
+                common_words.append(original_word)
+            else:
+                # Check if overall similarity is still above threshold
+                current_similarity = similar_matches / total_comparisons if total_comparisons > 0 else 0
+                
+                if current_similarity < min_similarity:
+                    # If adding this dissimilar word drops us below threshold, stop
+                    break
+                else:
+                    # If overall similarity is still good, include this word but mark as different
+                    similar_matches += 0.5  # Partial credit for maintaining flow
+                    if return_from == "text2":
+                        original_word = original_words2[i] if i < len(original_words2) else word2
+                    else:
+                        original_word = original_words1[i] if i < len(original_words1) else word1
+                    common_words.append(original_word)
+        
+        # Final similarity check - ensure we meet the minimum threshold
+        final_similarity = similar_matches / total_comparisons if total_comparisons > 0 else 0
+        
+        # If we don't meet the threshold, trim back until we do
+        if final_similarity < min_similarity and len(common_words) > 1:
+            # Try removing words from the end until we meet threshold
+            for trim_count in range(1, len(common_words)):
+                trimmed_comparisons = total_comparisons - trim_count
+                trimmed_matches = similar_matches - (trim_count * 0.5)  # Assume trimmed words were partial matches
+                
+                if trimmed_comparisons > 0:
+                    trimmed_similarity = trimmed_matches / trimmed_comparisons
+                    if trimmed_similarity >= min_similarity:
+                        common_words = common_words[:-trim_count]
+                        final_similarity = trimmed_similarity
+                        break
+        
+        result = " ".join(common_words)
+        final_similarity = final_similarity * 100  # Convert to percentage for logging
+        # final_Length = len(result)
+        print(f"DEBUG: Found common prefix with {final_similarity:.1} similarity: '{result}'")
+        # print(f"DEBUG: Length {final_Length} characters, returning from {return_from}, caller: {label}")
+
+        return result,final_similarity
+
+    def _calculate_word_similarity(self, word1, word2):
+        """
+        Calculate similarity between two words using edit distance only
+        
+        Returns:
+            float: Similarity score between 0.0 and 1.0
+        """
+        if word1 == word2:
+            return 1.0
+        
+        # Handle punctuation
+        clean_word1 = self._clean_word_for_comparison(word1)
+        clean_word2 = self._clean_word_for_comparison(word2)
+        
+        if clean_word1 == clean_word2:
+            return 0.95  # High similarity for punctuation differences
+        
+        # Use edit distance for general similarity
+        return self._levenshtein_similarity(clean_word1, clean_word2)
+
+    def _clean_word_for_comparison(self, word):
+        """
+        Clean word by removing punctuation and normalizing
+        """
+        import string
+        # Remove punctuation
+        cleaned = word.translate(str.maketrans('', '', string.punctuation))
+        return cleaned.lower().strip()
+
+    def _levenshtein_similarity(self, word1, word2):
+        """
+        Calculate similarity using Levenshtein distance
+        
+        Returns:
+            float: Similarity score between 0.0 and 1.0
+        """
+        if not word1 or not word2:
+            return 0.0
+        
+        # Calculate Levenshtein distance
+        distance = self._levenshtein_distance(word1, word2)
+        max_length = max(len(word1), len(word2))
+        
+        if max_length == 0:
+            return 1.0
+        
+        # Convert distance to similarity (0 distance = 1.0 similarity)
+        similarity = 1.0 - (distance / max_length)
+        
+        # Only consider it similar if it's above a threshold
+        return similarity if similarity >= 0.6 else 0.0
+
+    def _levenshtein_distance(self, s1, s2):
+        """
+        Calculate the Levenshtein distance between two strings
+        """
+        if len(s1) < len(s2):
+            return self._levenshtein_distance(s2, s1)
+
+        if len(s2) == 0:
+            return len(s1)
+
+        previous_row = list(range(len(s2) + 1))
+        for i, c1 in enumerate(s1):
+            current_row = [i + 1]
+            for j, c2 in enumerate(s2):
+                insertions = previous_row[j + 1] + 1
+                deletions = current_row[j] + 1
+                substitutions = previous_row[j] + (c1 != c2)
+                current_row.append(min(insertions, deletions, substitutions))
+            previous_row = current_row
+        
+        return previous_row[-1]
+    
     def _extract_word_timestamps(self, result):
         """
         Extract word-level timestamps from Whisper result
@@ -215,8 +380,13 @@ class WhisperStreamingTranscriberWithSpecials:
             self.stable_text_buffer = stable_text
             
         time_now = time.time()
-        time_passed_before_commit = time_now - self.last_stable_buffer_update
-        print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
+        if self.last_stable_buffer_update is not None:
+            time_passed_before_commit = time_now - self.last_stable_buffer_update
+            print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
+        else:
+            print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] No previous stable buffer update\033[0m")
+            
+        
         # Update stable buffer timestamp
         self.last_stable_buffer_update = time.time()
 
@@ -228,9 +398,12 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Calculate audio samples to remove from active buffer with overlap
         # alpha = 0.05  # 5% overlap factor to prevent cutting off audio mid-word
-        alpha = 0.1  # 10% overlap factor to prevent cutting off audio mid-word
-        end_samples = int(end_time * self.RATE * (1 - alpha))
-        
+        # alpha = 0.1  # 10% overlap factor to prevent cutting off audio mid-word
+        # end_samples = int(end_time * self.RATE * (1 - alpha))
+
+        end_samples_without_overlap = int(end_time * self.RATE)
+        end_samples = end_samples_without_overlap
+
         if len(self.active_audio_buffer) > end_samples:
             # Keep remaining audio in active buffer
             self.active_audio_buffer = self.active_audio_buffer[end_samples:]
@@ -255,7 +428,7 @@ class WhisperStreamingTranscriberWithSpecials:
         #     self.transcription_history.pop(0)
 
         # Keep only last 4 transcriptions
-        if len(self.transcription_history) > 4:
+        if len(self.transcription_history) > 3:
             self.transcription_history.pop(0)
         
         # Need at least 2 transcriptions to compare
@@ -266,11 +439,31 @@ class WhisperStreamingTranscriberWithSpecials:
         previous_text = self.transcription_history[-2]
         
         # Find common prefix between current and previous
-        common_prefix = self._find_longest_common_prefix(previous_text, current_text,"second")
-        # print(f"DEBUG: Found common prefix: '{common_prefix}'\n and length {len(common_prefix)}")
-
-        if len(common_prefix) > 10:  # Only consider meaningful common prefixes
+        # common_prefix = self._find_longest_common_prefix(previous_text, current_text,"second")
+        common_prefix , similarity = self._find_longest_common_prefix_with_similarity(previous_text, current_text, 0.5, "text2", "test")
+        # if len(common_prefix) > 10:  # Only consider meaningful common prefixes
+        print (f"similarity : {similarity}")
+        
+        # special condition for similarity = 100
+        if similarity == 100.0 and len(common_prefix) > 10:
+            print(f"\n[SPECIAL CONDITION] Similarity is 100% Confirmed pattern: '{common_prefix}'")
+            end_time = self._find_last_word_end_time(common_prefix, word_timestamps)
+            print(f"[DEBUG] End time for special condition: {end_time}")
             
+            if end_time is not None:
+                # Commit to stable buffer
+                self._commit_to_stable_buffer(common_prefix, end_time)
+                # Reset state for next pattern detection
+                self.duplicate_detection_state = "waiting"
+                self.confirmed_pattern = ""
+                self.temp_timestamps_dict = {}
+                
+                # Clear transcription history to start fresh
+                self.transcription_history = []
+
+        # end special condition for similarity = 100
+        elif similarity >= 50.0:
+
             if self.duplicate_detection_state == "waiting":
                 # First time we see a duplicate
                 print(f"\n[DUPLICATE DETECTED] Common text: '{common_prefix}'")
@@ -288,19 +481,22 @@ class WhisperStreamingTranscriberWithSpecials:
                 # Check if we have 3rd confirmation
                 if len(self.transcription_history) >= 3:
                     third_text = self.transcription_history[-3]
-                    common_with_third = self._find_longest_common_prefix(common_prefix, third_text,"thir")
-                    
-                    if len(common_with_third) > 10 and common_with_third == self.confirmed_pattern:
+                    # common_with_third = self._find_longest_common_prefix(common_prefix, third_text,"thir")
+                    common_with_third , similarity = self._find_longest_common_prefix_with_similarity(common_prefix, third_text, 0.5, "text1", "third")
+
+                    # if len(common_with_third) > 10 and common_with_third == self.confirmed_pattern:
+                    if similarity >= 50 :
                         # We have 3-way confirmation!
-                        print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{self.confirmed_pattern}'")
+                        # print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{self.confirmed_pattern}'")
+                        print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{common_with_third}'")
                         
                         # Find the end time of the last word in confirmed pattern
-                        end_time = self._find_last_word_end_time(self.confirmed_pattern, self.temp_timestamps_dict)
-                        
+                        # end_time = self._find_last_word_end_time(self.confirmed_pattern, self.temp_timestamps_dict)
+                        end_time = self._find_last_word_end_time(common_with_third, self.temp_timestamps_dict)
                         if end_time is not None:
                             # Commit to stable buffer
-                            self._commit_to_stable_buffer(self.confirmed_pattern, end_time)
-                            
+                            # self._commit_to_stable_buffer(self.confirmed_pattern, end_time)
+                            self._commit_to_stable_buffer(common_with_third, end_time)
                             # Reset state for next pattern detection
                             self.duplicate_detection_state = "waiting"
                             self.confirmed_pattern = ""
@@ -809,6 +1005,7 @@ class WhisperStreamingTranscriberWithSpecials:
             
             # Check for sentence ending - Enhanced logic for stable buffer sync
             is_sentence_end, is_pause = self._detect_sentence_end(new_text)
+            # is_sentence_end = True
             
             # Start timer ONLY if:
             # 1. We see sentence ending punctuation

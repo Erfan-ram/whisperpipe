@@ -79,7 +79,7 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Simplified Timer Logic - Only stable buffer based
         self.last_transcription = ""           # Always keep the LAST transcription only
-        self.finalization_delay = 5.0        # Wait 5 seconds after last stable buffer update
+        self.finalization_delay = 7.0        # Wait 7 seconds after last stable buffer update
         self.last_stable_buffer_update = None # When stable buffer was last updated
         self.last_word_count = 0              # Track word count to detect new words
         
@@ -347,6 +347,11 @@ class WhisperStreamingTranscriberWithSpecials:
         # Try to find the last word's timestamp
         last_word = words[-1]
         
+        # Check if last word contains processing indicators like "..."
+        if self._is_processing_indicator(last_word):
+            print(f"Not end detected - processing indicator found . word is {last_word}")
+            return None
+        
         # Try exact match first
         if last_word in word_timestamps:
             return word_timestamps[last_word]
@@ -442,7 +447,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 # Reset state for next pattern detection
                 self.duplicate_detection_state = "waiting"
                 self.confirmed_pattern = ""
-                self.temp_timestamps_dict = {}
+                # self.temp_timestamps_dict = {}
                 
                 # Clear transcription history to start fresh
                 self.transcription_history = []
@@ -457,7 +462,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 print(f"[SAVING TIMESTAMPS] Waiting for 3rd confirmation...")
                 
                 # Save word timestamps for this pattern
-                self.temp_timestamps_dict = word_timestamps.copy()
+                # self.temp_timestamps_dict = word_timestamps.copy()
                 self.confirmed_pattern = common_prefix
                 self.duplicate_detection_state = "found_duplicate"
                 
@@ -469,7 +474,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 if len(self.transcription_history) >= 3:
                     third_text = self.transcription_history[-3]
                     # common_with_third = self._find_longest_common_prefix(common_prefix, third_text,"thir")
-                    common_with_third , similarity = self._find_longest_common_prefix_with_similarity(common_prefix, third_text, 0.5, "text1", "third")
+                    common_with_third , similarity = self._find_longest_common_prefix_with_similarity(common_prefix, self.confirmed_pattern, 0.5, "text1", "third")
 
                     # if len(common_with_third) > 10 and common_with_third == self.confirmed_pattern:
                     if similarity >= 50 :
@@ -479,7 +484,7 @@ class WhisperStreamingTranscriberWithSpecials:
                         
                         # Find the end time of the last word in confirmed pattern
                         # end_time = self._find_last_word_end_time(self.confirmed_pattern, self.temp_timestamps_dict)
-                        end_time = self._find_last_word_end_time(common_with_third, self.temp_timestamps_dict)
+                        end_time = self._find_last_word_end_time(common_with_third, word_timestamps)
                         if end_time is not None:
                             # Commit to stable buffer
                             # self._commit_to_stable_buffer(self.confirmed_pattern, end_time)
@@ -488,25 +493,25 @@ class WhisperStreamingTranscriberWithSpecials:
                             # Reset state for next pattern detection
                             self.duplicate_detection_state = "waiting"
                             self.confirmed_pattern = ""
-                            self.temp_timestamps_dict = {}
+                            # self.temp_timestamps_dict = {}
                             
                             # Clear transcription history to start fresh
                             self.transcription_history = []
                         else:
                             print(f"[WARNING] Could not find timestamp for last word in pattern")
-                            
-                    elif common_with_third != self.confirmed_pattern:
-                        self.temp_timestamps_dict = word_timestamps.copy()
+
+                    else:
+                        # self.temp_timestamps_dict = word_timestamps.copy()
                         self.confirmed_pattern = common_prefix
                         print(f"[DEBUG] ignored 3rd sentence .Updated confirmed pattern to: third :new logic . last vs new always")
                         
-                else:
-                    # Reset state if no meaningful common prefix found
-                    if self.duplicate_detection_state != "waiting":
-                        print(f"[RESET] No meaningful common prefix found, resetting duplicate detection state")
-                        self.duplicate_detection_state = "waiting"
-                        self.confirmed_pattern = ""
-                        self.temp_timestamps_dict = {}
+                # else:
+                #     # Reset state if no meaningful common prefix found
+                #     if self.duplicate_detection_state != "waiting":
+                #         print(f"[RESET] No meaningful common prefix found, resetting duplicate detection state")
+                #         self.duplicate_detection_state = "waiting"
+                #         self.confirmed_pattern = ""
+                #         self.temp_timestamps_dict = {}
 
     def _detect_foreign_language_or_annotation(self, text):
         """
@@ -981,7 +986,7 @@ class WhisperStreamingTranscriberWithSpecials:
     
     def _send_to_llm(self, text):
         """Send completed sentence to LLM for processing"""
-        print(f"\n[LLM INPUT]: {text}")
+        print(f"\033[94m\n[LLM INPUT]: {text}\033[0m")
         # Your LLM integration code here
         # Example: response = your_llm_model.generate_answer(text)
         # print(f"[LLM RESPONSE]: {response}")
