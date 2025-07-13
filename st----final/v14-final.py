@@ -333,6 +333,7 @@ class WhisperStreamingTranscriberWithSpecials:
     def _find_last_word_end_time(self, text, word_timestamps):
         """
         Find the end time of the last word in the given text
+        Enhanced: Consider previous word context to choose the correct occurrence
         """
         if not text or not word_timestamps:
             return None
@@ -365,9 +366,47 @@ class WhisperStreamingTranscriberWithSpecials:
                 matching_timestamps.append(timestamp)
         
         if matching_timestamps:
-            # Return the highest (latest) timestamp for the word
+            print(f"[DEBUG] Found matching timestamps: {matching_timestamps}")
+            
+            # Enhanced logic: Consider previous word context if we have multiple matches
+            if len(matching_timestamps) > 1 and len(words) > 1:
+                expected_previous_word = words[-2]  # Get the word before the last word
+                expected_previous_clean = expected_previous_word.lower().strip(".,!?;:")
+                
+                print(f"[DEBUG] Multiple matches found, checking context with previous word: '{expected_previous_word}'")
+                
+                # Create sorted list of word timestamps for sequence analysis
+                sorted_timestamps = sorted(word_timestamps.items())
+                
+                # Find matches that have the correct previous word context
+                context_matches = []
+                for target_timestamp in matching_timestamps:
+                    # Find the position of this timestamp in the sequence
+                    for i, (timestamp, word) in enumerate(sorted_timestamps):
+                        if timestamp == target_timestamp:
+                            # Check if there's a previous word and if it matches our expected context
+                            if i > 0:
+                                prev_timestamp, prev_word = sorted_timestamps[i-1]
+                                prev_word_clean = prev_word.lower().strip(".,!?;:")
+                                
+                                if (prev_word == expected_previous_word or 
+                                    prev_word_clean == expected_previous_clean or 
+                                    prev_word.lower() == expected_previous_word.lower()):
+                                    context_matches.append(target_timestamp)
+                                    print(f"[DEBUG] Context match found: '{prev_word}' -> '{word}' at {target_timestamp}")
+                            break
+                
+                if context_matches:
+                    # If we found context matches, use the latest one among them
+                    result = max(context_matches)
+                    print(f"[DEBUG] Using context-based match: {result}")
+                    return result
+                else:
+                    print(f"[DEBUG] No context matches found, falling back to latest timestamp")
+            
+            # Fallback: Return the highest (latest) timestamp for the word
             result = max(matching_timestamps)
-            print(f"[DEBUG] Found matching timestamps: {matching_timestamps}, returning latest: {result}")
+            print(f"[DEBUG] Returning latest timestamp: {result}")
             return result
         
         # Try to find any word that contains our word (partial matching)
