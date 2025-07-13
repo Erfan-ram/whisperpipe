@@ -314,7 +314,7 @@ class WhisperStreamingTranscriberWithSpecials:
     def _extract_word_timestamps(self, result):
         """
         Extract word-level timestamps from Whisper result
-        Returns: dict of {word: end_time}
+        Returns: dict of {end_time: word}
         """
         word_timestamps = {}
         
@@ -325,11 +325,8 @@ class WhisperStreamingTranscriberWithSpecials:
                         word = word_info.get("word", "").strip()
                         end_time = word_info.get("end", 0)
                         if word:
-                            # Handle punctuation attached to words
-                            word_clean = word.lower().strip(".,!?;:")
-                            word_timestamps[word] = end_time
-                            if word_clean != word.lower():
-                                word_timestamps[word_clean] = end_time
+                            # Use timestamp as key to prevent overwrites when words repeat
+                            word_timestamps[end_time] = word
         
         return word_timestamps
     
@@ -353,19 +350,30 @@ class WhisperStreamingTranscriberWithSpecials:
             return None
         
         print(f"[DEBUG] Finding end time for last word: '{last_word}'")
-        print(f"[DEBUG] Word timestamps available: {list(word_timestamps.keys())}")
-        # Try exact match first
-        if last_word in word_timestamps:
-            return word_timestamps[last_word]
+        print(f"[DEBUG] Word timestamps available: {list(word_timestamps.values())}")
         
-        # Try without punctuation
+        # Clean the last word for comparison
         last_word_clean = last_word.lower().strip(".,!?;:")
-        if last_word_clean in word_timestamps:
-            return word_timestamps[last_word_clean]
         
-        # Try to find any word that contains our word
-        for word, timestamp in word_timestamps.items():
+        # Find all timestamps where the word matches our target word
+        matching_timestamps = []
+        for timestamp, word in word_timestamps.items():
+            word_clean = word.lower().strip(".,!?;:")
+            if (word == last_word or 
+                word_clean == last_word_clean or 
+                word.lower() == last_word.lower()):
+                matching_timestamps.append(timestamp)
+        
+        if matching_timestamps:
+            # Return the highest (latest) timestamp for the word
+            result = max(matching_timestamps)
+            print(f"[DEBUG] Found matching timestamps: {matching_timestamps}, returning latest: {result}")
+            return result
+        
+        # Try to find any word that contains our word (partial matching)
+        for timestamp, word in word_timestamps.items():
             if last_word.lower() in word.lower() or word.lower() in last_word.lower():
+                print(f"[DEBUG] Partial match found: {word} at {timestamp}")
                 return timestamp
         
         return None
