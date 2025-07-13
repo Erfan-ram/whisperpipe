@@ -352,6 +352,8 @@ class WhisperStreamingTranscriberWithSpecials:
             print(f"Not end detected - processing indicator found . word is {last_word}")
             return None
         
+        print(f"[DEBUG] Finding end time for last word: '{last_word}'")
+        print(f"[DEBUG] Word timestamps available: {list(word_timestamps.keys())}")
         # Try exact match first
         if last_word in word_timestamps:
             return word_timestamps[last_word]
