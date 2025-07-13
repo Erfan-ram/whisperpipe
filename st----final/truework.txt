@@ -426,3 +426,169 @@ q
   1. [19:27:51] Old people are always saying that that the young are not what they were. the same comment is made from generation to generation and it is always true.
   2. [19:28:20] It has never been truer than today it is today. The young are better educated, they have a lot more money to spend and enjoy more freedom.
 Transcription ended.
+
+
+
+
+
+---------------------------------------------------------
+
+/home/erfan/venvs/torchzone/bin/python /home/erfan/Desktop/Rag-zone/Audio2Text/st----final/v14-final.py
+(torchzone) ➜  Audio2Text /home/erfan/venvs/torchzone/bin/python /home/erfan/Desktop/Rag-zone/Audio2Text/st----final/v14-final.py
+Loading Whisper model: base.en
+Model loaded successfully!
+Using device: cuda
+ALSA lib pcm_dsnoop.c:601:(snd_pcm_dsnoop_open) unable to open slave
+ALSA lib pcm_dmix.c:1032:(snd_pcm_dmix_open) unable to open slave
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.rear
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.center_lfe
+ALSA lib pcm.c:2664:(snd_pcm_open_noupdate) Unknown PCM cards.pcm.side
+ALSA lib pcm_oss.c:397:(_snd_pcm_oss_open) Cannot open device /dev/dsp
+ALSA lib pcm_oss.c:397:(_snd_pcm_oss_open) Cannot open device /dev/dsp
+ALSA lib confmisc.c:160:(snd_config_get_card) Invalid field card
+ALSA lib pcm_usb_stream.c:482:(_snd_pcm_usb_stream_open) Invalid card 'card'
+ALSA lib confmisc.c:160:(snd_config_get_card) Invalid field card
+ALSA lib pcm_usb_stream.c:482:(_snd_pcm_usb_stream_open) Invalid card 'card'
+ALSA lib pcm_dmix.c:1032:(snd_pcm_dmix_open) unable to open slave
+Listening with Fixed Dual Buffer System...
+- Text-only stable buffer (no audio buffer)
+- Simplified timer based ONLY on stable buffer updates
+- Timer RESETS when new content is committed to stable buffer
+- FIXED: Stable buffer preserved during noise rejections
+- Intelligent pattern detection with 3-way confirmation
+- Prevents exponential reprocessing
+- Foreign language detection and reset
+- LLM sending only when 10s passed since last stable buffer update
+
+[TRANSCRIPTION] [silence]
+[REJECTED] Audio annotation: \[.*silence.*\]
+[REJECTION COUNT] 1/3
+
+[TRANSCRIPTION] [silence] [silence]
+[REJECTED] Audio annotation: \[.*silence.*\]
+[REJECTION COUNT] 2/3
+
+[TRANSCRIPTION] [silence] [silence] [silence]
+[REJECTED] Audio annotation: \[.*silence.*\]
+[REJECTION COUNT] 3/3
+
+[RESET STATE] Maximum foreign language rejections reached
+[RESET STATE] Clearing ONLY active components, preserving stable buffer
+[RESET STATE] Stable buffer preserved: ''
+[RESET STATE] Ready for fresh sentence detection
+
+[TRANSCRIPTION] (buzzer)
+[REJECTED] Mostly parenthetical/bracketed content
+[REJECTION COUNT] 1/3
+
+[TRANSCRIPTION] Hello...
+[ENGLISH DETECTED] Resetting foreign language rejection counter
+[NEW WORDS DETECTED] Word count: 0 → 1
+[NEW WORDS] Detected new words in transcription
+
+[TRANSCRIPTION] Hello, how are you? My name is John and Wilkes.
+DEBUG: Found common prefix with 1e+02 similarity: 'Hello,'
+similarity : 100.0
+[NEW WORDS DETECTED] Word count: 1 → 10
+[NEW WORDS] Detected new words in transcription
+
+[TRANSCRIPTION] Hello, how are you? My name is John and welcome to my...
+DEBUG: Found common prefix with 1e+02 similarity: 'Hello, how are you? My name is John and welcome'
+similarity : 95.0
+
+[DUPLICATE DETECTED] Common text: 'Hello, how are you? My name is John and welcome'
+[SAVING TIMESTAMPS] Waiting for 3rd confirmation...
+[saved dic double founded : Hello, how are you? My name is John and welcome]
+[NEW WORDS DETECTED] Word count: 10 → 12
+[NEW WORDS] Detected new words in transcription
+
+[TRANSCRIPTION] Hello, how are you? My name is John and welcome to my presentation.
+DEBUG: Found common prefix with 1e+02 similarity: 'Hello, how are you? My name is John and welcome to my'
+similarity : 100.0
+
+[SPECIAL CONDITION] Similarity is 100% Confirmed pattern: 'Hello, how are you? My name is John and welcome to my'
+[DEBUG] Finding end time for last word: 'my'
+[DEBUG] Word timestamps available: ['Hello,', 'how', 'are', 'you?', 'My', 'name', 'is', 'John', 'and', 'welcome', 'to', 'my', 'presentation.']
+[DEBUG] Found matching timestamps: [3.64, 5.84]
+[DEBUG] Multiple matches found, checking context with previous word: 'to'
+[DEBUG] Context match found: 'to' -> 'my' at 5.84
+[DEBUG] Using context-based match: 5.84
+[DEBUG] End time for special condition: 5.84
+
+[COMMITTING TO STABLE] Text: 'Hello, how are you? My name is John and welcome to my'
+[COMMITTING TO STABLE] End time: 5.84s
+[TIMER RESET] Stable buffer timer reset due to new content commit
+[BUFFER MOVED] Removed 5.84s of audio from active buffer
+[BUFFER STATUS] Active audio remaining: 1.6s
+
+stable buffer: Hello, how are you? My name is John and welcome to my
+active buffer: ...
+[NEW WORDS DETECTED] Word count: 12 → 13
+[NEW WORDS] Detected new words in transcription
+
+[TRANSCRIPTION] presentation.
+
+[TRANSCRIPTION] presentation.
+DEBUG: Found common prefix with 1e+02 similarity: 'presentation.'
+similarity : 100.0
+
+[TRANSCRIPTION] presentation.
+DEBUG: Found common prefix with 1e+02 similarity: 'presentation.'
+similarity : 100.0
+
+[TRANSCRIPTION] presentation.
+DEBUG: Found common prefix with 1e+02 similarity: 'presentation.'
+similarity : 100.0
+
+[TRANSCRIPTION] presentation.
+DEBUG: Found common prefix with 1e+02 similarity: 'presentation.'
+similarity : 100.0
+[TIMER EXPIRED] Stable buffer delay: 7.0s - finalizing sentence
+
+[SENTENCE COMPLETE] Hello, how are you? My name is John and welcome to my presentation.
+
+[LLM INPUT]: Hello, how are you? My name is John and welcome to my presentation.
+
+[TRANSCRIPTION] (buzzer)
+[REJECTED] Mostly parenthetical/bracketed content
+[REJECTION COUNT] 1/3
+
+[TRANSCRIPTION] (buzzer)
+[REJECTED] Mostly parenthetical/bracketed content
+[REJECTION COUNT] 2/3
+
+[TRANSCRIPTION] (buzzing)
+[REJECTED] Audio annotation: \(.*buzzing.*\)
+[REJECTION COUNT] 3/3
+
+[RESET STATE] Maximum foreign language rejections reached
+[RESET STATE] Clearing ONLY active components, preserving stable buffer
+[RESET STATE] Stable buffer preserved: ''
+[RESET STATE] Ready for fresh sentence detection
+
+[TRANSCRIPTION] (buzzer)
+[REJECTED] Mostly parenthetical/bracketed content
+[REJECTION COUNT] 1/3
+
+[TRANSCRIPTION] (buzzing)
+[REJECTED] Audio annotation: \(.*buzzing.*\)
+[REJECTION COUNT] 2/3
+
+Stopping transcription...
+
+Cleaning up resources...
+q
+[PROCESSING FINAL SEGMENT]
+
+[TRANSCRIPTION] (buzzing)
+[REJECTED] Audio annotation: \(.*buzzing.*\)
+[REJECTION COUNT] 3/3
+
+[RESET STATE] Maximum foreign language rejections reached
+[RESET STATE] Clearing ONLY active components, preserving stable buffer
+[RESET STATE] Stable buffer preserved: ''
+[RESET STATE] Ready for fresh sentence detection
+
+[SESSION SUMMARY] Processed 1 sentences:
+  1. [18:48:23] Hello, how are you? My name is John and welcome to my presentation.
+Transcription ended.
