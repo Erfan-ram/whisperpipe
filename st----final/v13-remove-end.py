@@ -407,10 +407,10 @@ class WhisperStreamingTranscriberWithSpecials:
             print(f"[BUFFER MOVED] Removed {end_time}s of audio from active buffer")
             print(f"[BUFFER STATUS] Active audio remaining: {len(self.active_audio_buffer)/self.RATE:.1f}s")
         
-        # Debug output as requested
-        print(f"\nstable buffer: {self.stable_text_buffer}")
+        # Debug output as requested with colors
+        print(f"\n\033[92mstable buffer: {self.stable_text_buffer}\033[0m")
         remaining_text = self.last_transcription[len(stable_text):].strip() if self.last_transcription else ""
-        print(f"active buffer: {remaining_text}")
+        print(f"\033[93mactive buffer: {remaining_text}\033[0m")
     
     def _process_transcription_pattern(self, new_text, word_timestamps):
         """
@@ -894,14 +894,16 @@ class WhisperStreamingTranscriberWithSpecials:
                 )
                 
                 # Force segmentation if sentence is too long
+                # TODO: Make this more adaptive and pass to llm each 1 minute for special long sentences
                 should_force = self._should_force_segmentation()
                 
                 if should_process or should_force:
-                    if should_force:
-                        print("\n[FORCE SEGMENTATION - Time limit reached]")
-                    
                     self._process_sentence_segment(self.active_audio_buffer)
                     self.last_transcription_time = time.time()
+                    
+                    if should_force:
+                        print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
+                        self._finalize_sentence()
                 
                 # Adaptive sleep
                 elapsed = time.time() - start_time
