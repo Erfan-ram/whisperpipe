@@ -932,6 +932,7 @@ class WhisperStreamingTranscriberWithSpecials:
                         
                         # Limit active buffer size (max 60 seconds)
                         max_active_buffer = int(self.RATE * self.max_sentence_duration)
+                        # print(f"[ACTIVE BUFFER vs MAX] {len(self.active_audio_buffer)} length vs {max_active_buffer} max active buffer size")
                         if len(self.active_audio_buffer) > max_active_buffer:
                             self.active_audio_buffer = self.active_audio_buffer[-max_active_buffer:]
                 
@@ -954,6 +955,11 @@ class WhisperStreamingTranscriberWithSpecials:
                         print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
                         self._finalize_sentence()
                 
+                # if max_active_buffer:
+                #     print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
+                # if self.sentence_start_time:
+                #     print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
+
                 # Adaptive sleep
                 elapsed = time.time() - start_time
                 sleep_time = max(0.01, 0.05 - elapsed)
