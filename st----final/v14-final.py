@@ -145,8 +145,8 @@ class WhisperStreamingTranscriberWithSpecials:
     #     print(f"DEBUG: Found common prefix: '{res}'\n and length {len(res)} and caller : {label}")
         
     #     return res
-    
-    def _find_longest_common_prefix_with_similarity(self, text1, text2, min_similarity=0.8, return_from="text1", label=""):
+
+    def _find_longest_common_prefix_with_similarity(self, text1, text2, min_similarity=0.8, return_from="text1"):
         """
         Find the longest common prefix between two transcriptions using similarity scoring
         Returns the common text portion based on similarity threshold
@@ -155,7 +155,6 @@ class WhisperStreamingTranscriberWithSpecials:
             text1, text2: Input texts to compare
             min_similarity: Minimum similarity threshold (0.0 to 1.0)
             return_from: "text1" or "text2" - which text to return words from
-            label: Debug label for logging
         
         Returns:
             String: The longest prefix that maintains the similarity threshold
@@ -233,7 +232,7 @@ class WhisperStreamingTranscriberWithSpecials:
         final_similarity = final_similarity * 100  # Convert to percentage for logging
         # final_Length = len(result)
         print(f"DEBUG: Found common prefix with {final_similarity:.1} similarity: '{result}'")
-        # print(f"DEBUG: Length {final_Length} characters, returning from {return_from}, caller: {label}")
+        # print(f"DEBUG: Length {final_Length} characters, returning from {return_from}")
 
         return result,final_similarity
 
@@ -480,7 +479,7 @@ class WhisperStreamingTranscriberWithSpecials:
         previous_text = self.transcription_history[-2]
         
         # Find common prefix between current and previous
-        common_prefix , similarity = self._find_longest_common_prefix_with_similarity(previous_text, current_text, 0.5, "text2", "test")
+        common_prefix , similarity = self._find_longest_common_prefix_with_similarity(previous_text, current_text, 0.5, "text2")
         print (f"similarity : {similarity}")
         
         # special condition for similarity = 100
@@ -516,7 +515,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 # Check if we have 3rd confirmation
                 if len(self.transcription_history) >= 3:
                     # third_text = self.transcription_history[-3]
-                    common_with_third , similarity = self._find_longest_common_prefix_with_similarity(common_prefix, self.confirmed_pattern, 0.5, "text1", "third")
+                    common_with_third , similarity = self._find_longest_common_prefix_with_similarity(common_prefix, self.confirmed_pattern, 0.5, "text1")
 
                     if similarity >= 50 :
                         # We have 3-way confirmation!
