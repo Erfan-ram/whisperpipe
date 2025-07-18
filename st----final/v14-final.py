@@ -658,6 +658,12 @@ class WhisperStreamingTranscriberWithSpecials:
         if self.last_stable_buffer_update:
             elapsed = time.time() - self.last_stable_buffer_update
             print(f"[RESET STATE] Timer continues: {elapsed:.1f}s since last stable update")
+        
+        if self.sentence_start_time and self.last_stable_buffer_update is None:
+            # If we had a sentence start time but no stable buffer update, means it is not a valid sentence
+            self.sentence_start_time = None
+            print(f"[RESET STATE] Sentence start time cleared")
+        
         print(f"[RESET STATE] Ready for fresh sentence detection")
     
     def _is_noise_only_transcription(self, text):
@@ -951,10 +957,10 @@ class WhisperStreamingTranscriberWithSpecials:
                         print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
                         self._finalize_sentence()
                 
-                # if max_active_buffer:
-                #     print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
-                # if self.sentence_start_time:
-                #     print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
+                    # if max_active_buffer:
+                    #     print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
+                    # if self.sentence_start_time:
+                    #     print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
 
                 # Adaptive sleep
                 elapsed = time.time() - start_time
