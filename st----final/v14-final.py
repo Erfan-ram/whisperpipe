@@ -74,7 +74,8 @@ class WhisperStreamingTranscriberWithSpecials:
         # Sentence-based segmentation parameters
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
-        self.max_sentence_duration = 60.0  # Max sentence duration
+        self.max_sentence_duration = 120.0  # Max sentence duration
+        self.max_active_buffer_duration = 30.0  # Max active buffer duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
         # Simplified Timer Logic - Only stable buffer based
@@ -915,13 +916,22 @@ class WhisperStreamingTranscriberWithSpecials:
                     
                     if len(latest_audio) > 0:
                         self.active_audio_buffer = np.append(self.active_audio_buffer, latest_audio)
-                        
-                        # Limit active buffer size (max 60 seconds)
-                        max_active_buffer = int(self.RATE * self.max_sentence_duration)
+
+                        # Limit active buffer size (max 30 seconds)
+                        max_active_buffer = int(self.RATE * self.max_active_buffer_duration)
                         # print(f"[ACTIVE BUFFER vs MAX] {len(self.active_audio_buffer)} length vs {max_active_buffer} max active buffer size")
+                        
+                        # TODO: this situation heapend when every time it transcribes different text based on bad audio
+                        # so it keeps adding to active buffer and never clears it
+                        # ideally this should not happen, but if it does, we should manage it better
+                        # if active buffer is too long, trim it to last 24 seconds
+                        # this is a temporary fix, ideally we should have better adaptive management
+                        # though below code works fine but need more management
                         if len(self.active_audio_buffer) > max_active_buffer:
-                            self.active_audio_buffer = self.active_audio_buffer[-max_active_buffer:]
-                
+                            print(f"\033[93m[ACTIVE BUFFER TRIMMED] Active buffer full, i must use better adaptive management\033[0m")
+                            four_fifth = (max_active_buffer // 5) * 4
+                            self.active_audio_buffer = self.active_audio_buffer[-four_fifth:]
+
                 # Process during ongoing audio (periodic transcription)
                 min_processing_buffer = int(self.RATE * 0.8)
                 should_process = (
@@ -930,7 +940,7 @@ class WhisperStreamingTranscriberWithSpecials:
                 )
                 
                 # Force segmentation if sentence is too long
-                # TODO: Make this more adaptive and pass to llm each 1 minute for special long sentences
+                # TODO: Make this more adaptive and pass to llm each 2 minute for special long sentences
                 should_force = self._should_force_segmentation()
                 
                 if should_process or should_force:
