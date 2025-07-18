@@ -80,7 +80,7 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Simplified Timer Logic - Only stable buffer based
         self.last_transcription = ""           # Always keep the LAST transcription only
-        self.finalization_delay = 7.0        # Wait 7 seconds after last stable buffer update
+        self.finalization_delay = 10.0        # Wait 10 seconds after last stable buffer update
         self.last_stable_buffer_update = None # When stable buffer was last updated
         self.last_word_count = 0              # Track word count to detect new words
         
@@ -803,7 +803,7 @@ class WhisperStreamingTranscriberWithSpecials:
     def _should_finalize_after_delay(self):
         """
         Simplified: Check if we should finalize based only on stable buffer updates
-        Only returns True if 7 seconds have passed since last stable buffer update
+        Only returns True if 10 seconds have passed since last stable buffer update
         """
         if self.last_stable_buffer_update is None:
             return False
