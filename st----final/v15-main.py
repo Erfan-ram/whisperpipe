@@ -53,7 +53,6 @@ class WhisperStreamingTranscriberWithSpecials:
         self.CHUNK = 1024
         
         # Calculate buffer parameters
-        self.buffer_duration_seconds = buffer_duration_seconds
         self.max_buffer_size = int(self.RATE * buffer_duration_seconds)
         
         # Processing parameters
