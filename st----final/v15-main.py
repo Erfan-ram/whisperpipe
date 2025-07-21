@@ -23,7 +23,7 @@ import whisper
 import torch
 
 class WhisperStreamingTranscriberWithSpecials:
-    def __init__(self, model_name="base.en", buffer_duration_seconds=5):
+    def __init__(self, model_name="base.en", buffer_duration_seconds=15):
         """
         Initialize the transcriber with OpenAI Whisper model
         
@@ -54,7 +54,7 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Calculate buffer parameters
         self.buffer_duration_seconds = buffer_duration_seconds
-        self.buffer_size = int(self.RATE * buffer_duration_seconds)
+        self.max_buffer_size = int(self.RATE * buffer_duration_seconds)
         
         # Processing parameters
         self.audio_queue = queue.Queue()
@@ -906,8 +906,8 @@ class WhisperStreamingTranscriberWithSpecials:
                 
                 # Maintain rolling buffer size
                 with self.lock:
-                    if len(self.rolling_buffer) > self.buffer_size:
-                        self.rolling_buffer = self.rolling_buffer[-self.buffer_size:]
+                    if len(self.rolling_buffer) > self.max_buffer_size:
+                        self.rolling_buffer = self.rolling_buffer[-self.max_buffer_size:]
                 
                 # Add to active audio buffer
                 current_time = time.time()
