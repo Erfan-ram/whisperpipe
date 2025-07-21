@@ -22,14 +22,16 @@ import whisper
 import torch
 
 class WhisperStreamingTranscriberWithSpecials:
-    def __init__(self, model_name="base.en", buffer_duration_seconds=5.0):
+    def __init__(self, model_name="base.en", buffer_duration_seconds=5.0, debug_mode=True):
         """
         Initialize the transcriber with OpenAI Whisper model
         
         Args:
             model_name: Whisper model name (tiny, base, small, medium, large, base.en, small.en)
             buffer_duration_seconds: Time window in seconds to hold audio for processing
+            debug_mode: Enable debug mode for detailed logging (default True)
         """
+        self._debug_mode_enabled = debug_mode
         print(f"Loading Whisper model: {model_name}")
         
         try:
@@ -107,17 +109,40 @@ class WhisperStreamingTranscriberWithSpecials:
             sys.exit(1)
         self.stream = None
     
+    def debug_mode(self, enabled=True):
+        """
+        Enable or disable debug mode
+        
+        Args:
+            enabled: True to enable debug mode, False to disable (default True)
+        """
+        self._debug_mode_enabled = enabled
+        if enabled:
+            print("Debug mode enabled")
+        else:
+            print("Debug mode disabled")
+    
+    def _debug_print(self, message):
+        """
+        Print debug message only if debug mode is enabled
+        
+        Args:
+            message: Debug message to print
+        """
+        if self._debug_mode_enabled:
+            print(message)
+    
     def _audio_callback(self, in_data, frame_count, time_info, status):
         """Callback function for PyAudio stream"""
         if status:
-            print(f"PyAudio status: {status}")
+            self._debug_print(f"PyAudio status: {status}")
         
         try:
             # Convert audio data to numpy array and normalize
             audio_data = np.frombuffer(in_data, dtype=np.int16).astype(np.float32) / 32768.0
             self.audio_queue.put(audio_data)
         except Exception as e:
-            print(f"Error in audio callback: {e}")
+            self._debug_print(f"Error in audio callback: {e}")
         
         return (in_data, pyaudio.paContinue)
 
@@ -229,8 +254,8 @@ class WhisperStreamingTranscriberWithSpecials:
         result = " ".join(common_words)
         final_similarity = final_similarity * 100  # Convert to percentage for logging
         # final_Length = len(result)
-        print(f"DEBUG: Found common prefix with {final_similarity:.1} similarity: '{result}'")
-        # print(f"DEBUG: Length {final_Length} characters, returning from {return_from}")
+        self._debug_print(f"DEBUG: Found common prefix with {final_similarity:.1} similarity: '{result}'")
+        # self._debug_print(f"DEBUG: Length {final_Length} characters, returning from {return_from}")
 
         return result,final_similarity
 
@@ -344,11 +369,11 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Check if last word contains processing indicators like "..."
         if self._is_processing_indicator(last_word):
-            print(f"Not end detected - processing indicator found . word is {last_word}")
+            self._debug_print(f"Not end detected - processing indicator found . word is {last_word}")
             return None
         
-        print(f"[DEBUG] Finding end time for last word: '{last_word}'")
-        print(f"[DEBUG] Word timestamps available: {list(word_timestamps.values())}")
+        self._debug_print(f"[DEBUG] Finding end time for last word: '{last_word}'")
+        self._debug_print(f"[DEBUG] Word timestamps available: {list(word_timestamps.values())}")
         
         # Clean the last word for comparison
         last_word_clean = last_word.lower().strip(".,!?;:")
@@ -363,14 +388,14 @@ class WhisperStreamingTranscriberWithSpecials:
                 matching_timestamps.append(timestamp)
         
         if matching_timestamps:
-            print(f"[DEBUG] Found matching timestamps: {matching_timestamps}")
+            self._debug_print(f"[DEBUG] Found matching timestamps: {matching_timestamps}")
             
             # Enhanced logic: Consider previous word context if we have multiple matches
             if len(matching_timestamps) > 1 and len(words) > 1:
                 expected_previous_word = words[-2]  # Get the word before the last word
                 expected_previous_clean = expected_previous_word.lower().strip(".,!?;:")
                 
-                print(f"[DEBUG] Multiple matches found, checking context with previous word: '{expected_previous_word}'")
+                self._debug_print(f"[DEBUG] Multiple matches found, checking context with previous word: '{expected_previous_word}'")
                 
                 # Create sorted list of word timestamps for sequence analysis
                 sorted_timestamps = sorted(word_timestamps.items())
@@ -390,26 +415,26 @@ class WhisperStreamingTranscriberWithSpecials:
                                     prev_word_clean == expected_previous_clean or 
                                     prev_word.lower() == expected_previous_word.lower()):
                                     context_matches.append(target_timestamp)
-                                    print(f"[DEBUG] Context match found: '{prev_word}' -> '{word}' at {target_timestamp}")
+                                    self._debug_print(f"[DEBUG] Context match found: '{prev_word}' -> '{word}' at {target_timestamp}")
                             break
                 
                 if context_matches:
                     # If we found context matches, use the latest one among them
                     result = max(context_matches)
-                    print(f"[DEBUG] Using context-based match: {result}")
+                    self._debug_print(f"[DEBUG] Using context-based match: {result}")
                     return result
                 else:
-                    print(f"[DEBUG] No context matches found, falling back to latest timestamp")
+                    self._debug_print(f"[DEBUG] No context matches found, falling back to latest timestamp")
             
             # Fallback: Return the highest (latest) timestamp for the word
             result = max(matching_timestamps)
-            print(f"[DEBUG] Returning latest timestamp: {result}")
+            self._debug_print(f"[DEBUG] Returning latest timestamp: {result}")
             return result
         
         # Try to find any word that contains our word (partial matching)
         for timestamp, word in word_timestamps.items():
             if last_word.lower() in word.lower() or word.lower() in last_word.lower():
-                print(f"[DEBUG] Partial match found: {word} at {timestamp}")
+                self._debug_print(f"[DEBUG] Partial match found: {word} at {timestamp}")
                 return timestamp
         
         return None
@@ -419,8 +444,8 @@ class WhisperStreamingTranscriberWithSpecials:
         Move confirmed text to stable buffer and update audio buffer
         IMPORTANT: Reset stable buffer timer when new content is added
         """
-        print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
-        print(f"[COMMITTING TO STABLE] End time: {end_time}s")
+        self._debug_print(f"\n[COMMITTING TO STABLE] Text: '{stable_text}'")
+        self._debug_print(f"[COMMITTING TO STABLE] End time: {end_time}s")
         
         # Add to stable text buffer
         if self.stable_text_buffer:
@@ -432,11 +457,11 @@ class WhisperStreamingTranscriberWithSpecials:
         time_now = time.time()
         if self.last_stable_buffer_update:
             time_passed_before_commit = time_now - self.last_stable_buffer_update
-            print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
+            self._debug_print(f"\033[92m[DEBUG ---- TIME PASSED BEFORE COMMIT] {time_passed_before_commit:.1f}s since last stable buffer update\033[0m")
         
         # CRITICAL: Reset stable buffer timer when new content is committed
         self.last_stable_buffer_update = time.time()
-        print(f"\033[93m[TIMER RESET] Stable buffer timer reset due to new content commit\033[0m")
+        self._debug_print(f"\033[93m[TIMER RESET] Stable buffer timer reset due to new content commit\033[0m")
         
         # Calculate audio samples to remove from active buffer with overlap
         # alpha = 0.05  # 5% overlap factor to prevent cutting off audio mid-word
@@ -450,10 +475,10 @@ class WhisperStreamingTranscriberWithSpecials:
             # Keep remaining audio in active buffer
             self.active_audio_buffer = self.active_audio_buffer[end_samples:]
             
-            print(f"[BUFFER MOVED] Removed {end_time}s of audio from active buffer")
-            print(f"[BUFFER STATUS] Active audio remaining: {len(self.active_audio_buffer)/self.RATE:.1f}s")
+            self._debug_print(f"[BUFFER MOVED] Removed {end_time}s of audio from active buffer")
+            self._debug_print(f"[BUFFER STATUS] Active audio remaining: {len(self.active_audio_buffer)/self.RATE:.1f}s")
         
-        # Debug output as requested with colors
+        # Debug output as requested with colors - THESE ARE ESSENTIAL MESSAGES
         print(f"\n\033[92mstable buffer: {self.stable_text_buffer}\033[0m")
         remaining_text = self.last_transcription[len(stable_text):].strip() if self.last_transcription else ""
         print(f"\033[93mactive buffer: {remaining_text}\033[0m")
@@ -478,13 +503,13 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Find common prefix between current and previous
         common_prefix , similarity = self._find_longest_common_prefix_with_similarity(previous_text, current_text, 0.5, "text2")
-        print (f"similarity : {similarity}")
+        self._debug_print(f"similarity : {similarity}")
         
         # special condition for similarity = 100
         if similarity == 100.0 and len(common_prefix) > 20:
-            print(f"\n[SPECIAL CONDITION] Similarity is 100% Confirmed pattern: '{common_prefix}'")
+            self._debug_print(f"\n[SPECIAL CONDITION] Similarity is 100% Confirmed pattern: '{common_prefix}'")
             end_time = self._find_last_word_end_time(common_prefix, word_timestamps)
-            print(f"[DEBUG] End time for special condition: {end_time}")
+            self._debug_print(f"[DEBUG] End time for special condition: {end_time}")
             
             if end_time is not None:
                 # Commit to stable buffer
@@ -501,13 +526,13 @@ class WhisperStreamingTranscriberWithSpecials:
             
             if self.duplicate_detection_state == "waiting":
                 # First time we see a duplicate
-                print(f"\n[DUPLICATE DETECTED] Common text: '{common_prefix}'")
+                self._debug_print(f"\n[DUPLICATE DETECTED] Common text: '{common_prefix}'")
                 # Store the common prefix as the confirmed pattern
                 self.confirmed_pattern = common_prefix
                 self.duplicate_detection_state = "found_duplicate"
                 
                 # Debug output
-                print(f"[saved dic double founded : {common_prefix}]")
+                self._debug_print(f"[saved dic double founded : {common_prefix}]")
                 
             elif self.duplicate_detection_state == "found_duplicate":
                 # Check if we have 3rd confirmation
@@ -517,7 +542,7 @@ class WhisperStreamingTranscriberWithSpecials:
 
                     if similarity >= 50 :
                         # We have 3-way confirmation!
-                        print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{common_with_third}'")
+                        self._debug_print(f"\n[3-WAY CONFIRMATION] Confirmed pattern: '{common_with_third}'")
                         
                         # Find the end time of the last word in confirmed pattern
                         end_time = self._find_last_word_end_time(common_with_third, word_timestamps)
@@ -532,11 +557,11 @@ class WhisperStreamingTranscriberWithSpecials:
                             # Clear transcription history to start fresh
                             self.transcription_history = []
                         else:
-                            print(f"[WARNING] Could not find timestamp for last word in pattern")
+                            self._debug_print(f"[WARNING] Could not find timestamp for last word in pattern")
 
                     else:
                         self.confirmed_pattern = common_prefix
-                        print(f"[DEBUG] ignored 3rd sentence .Updated confirmed pattern to: third :new logic . last vs new always")
+                        self._debug_print(f"[DEBUG] ignored 3rd sentence .Updated confirmed pattern to: third :new logic . last vs new always")
                         
                 # else:
                 #     # Reset state if no meaningful common prefix found
@@ -629,8 +654,8 @@ class WhisperStreamingTranscriberWithSpecials:
         Reset the current sentence state and clear buffers
         FIXED: Only clear active components, preserve stable buffer and timer
         """
-        print(f"\n[RESET STATE] {reason}")
-        print(f"[RESET STATE] Clearing ONLY active components, preserving stable buffer")
+        self._debug_print(f"\n[RESET STATE] {reason}")
+        self._debug_print(f"[RESET STATE] Clearing ONLY active components, preserving stable buffer")
         
         # PRESERVE stable text buffer and timer - DO NOT CLEAR THESE
         # self.stable_text_buffer = ""  # DON'T CLEAR - preserve good content
@@ -651,17 +676,17 @@ class WhisperStreamingTranscriberWithSpecials:
         self.foreign_language_rejection_count = 0
         self.last_rejection_time = None
         
-        print(f"[RESET STATE] Stable buffer preserved: '{self.stable_text_buffer}'")
+        self._debug_print(f"[RESET STATE] Stable buffer preserved: '{self.stable_text_buffer}'")
         if self.last_stable_buffer_update:
             elapsed = time.time() - self.last_stable_buffer_update
-            print(f"[RESET STATE] Timer continues: {elapsed:.1f}s since last stable update")
+            self._debug_print(f"[RESET STATE] Timer continues: {elapsed:.1f}s since last stable update")
         
         if self.sentence_start_time and self.last_stable_buffer_update is None:
             # If we had a sentence start time but no stable buffer update, means it is not a valid sentence
             self.sentence_start_time = None
-            print(f"[RESET STATE] Sentence start time cleared")
+            self._debug_print(f"[RESET STATE] Sentence start time cleared")
         
-        print(f"[RESET STATE] Ready for fresh sentence detection")
+        self._debug_print(f"[RESET STATE] Ready for fresh sentence detection")
     
     def _is_noise_only_transcription(self, text):
         """
@@ -931,7 +956,7 @@ class WhisperStreamingTranscriberWithSpecials:
                         # this is a temporary fix, ideally we should have better adaptive management
                         # though below code works fine but need more management
                         if len(self.active_audio_buffer) > max_active_buffer:
-                            print(f"\033[93m[ACTIVE BUFFER TRIMMED] Active buffer full, i must use better adaptive management\033[0m")
+                            self._debug_print(f"\033[93m[ACTIVE BUFFER TRIMMED] Active buffer full, i must use better adaptive management\033[0m")
                             four_fifth = (max_active_buffer // 5) * 4
                             self.active_audio_buffer = self.active_audio_buffer[-four_fifth:]
 
@@ -951,13 +976,13 @@ class WhisperStreamingTranscriberWithSpecials:
                     self.last_transcription_time = time.time()
                     
                     if should_force:
-                        print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
+                        self._debug_print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
                         self._finalize_sentence()
                 
                     # if max_active_buffer:
-                    #     print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
+                    #     self._debug_print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
                     # if self.sentence_start_time:
-                    #     print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
+                    #     self._debug_print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
 
                 # Adaptive sleep
                 elapsed = time.time() - start_time
@@ -967,7 +992,7 @@ class WhisperStreamingTranscriberWithSpecials:
             except queue.Empty:
                 time.sleep(0.05)
             except Exception as e:
-                print(f"Error in audio processing thread: {e}")
+                self._debug_print(f"Error in audio processing thread: {e}")
                 time.sleep(0.1)
     
     def _process_sentence_segment(self, audio_buffer):
@@ -1002,13 +1027,13 @@ class WhisperStreamingTranscriberWithSpecials:
             is_foreign, is_audio_annotation, rejection_reason = self._detect_foreign_language_or_annotation(new_text)
             
             if is_foreign or is_audio_annotation:
-                print(f"[REJECTED] {rejection_reason}")
+                self._debug_print(f"[REJECTED] {rejection_reason}")
                 
                 # Increment rejection counter and update timestamp
                 self.foreign_language_rejection_count += 1
                 self.last_rejection_time = time.time()
                 
-                print(f"[REJECTION COUNT] {self.foreign_language_rejection_count}/{self.max_foreign_rejections}")
+                self._debug_print(f"[REJECTION COUNT] {self.foreign_language_rejection_count}/{self.max_foreign_rejections}")
                 
                 # If we've had too many rejections, reset immediately
                 if self.foreign_language_rejection_count >= self.max_foreign_rejections:
@@ -1018,7 +1043,7 @@ class WhisperStreamingTranscriberWithSpecials:
             
             # Reset foreign language rejection counter on successful English transcription
             if self.foreign_language_rejection_count > 0:
-                print(f"[ENGLISH DETECTED] Resetting foreign language rejection counter")
+                self._debug_print(f"[ENGLISH DETECTED] Resetting foreign language rejection counter")
                 self.foreign_language_rejection_count = 0
                 self.last_rejection_time = None
             
@@ -1030,15 +1055,15 @@ class WhisperStreamingTranscriberWithSpecials:
             
             # Check if we have new words
             if self._has_new_words(new_text):
-                print(f"[NEW WORDS] Detected new words in transcription")
+                self._debug_print(f"[NEW WORDS] Detected new words in transcription")
             
             # Detect sentence ending for logging purposes (no timer activation)
             # is_sentence_end, is_pause = self._detect_sentence_end(new_text)
             # if is_sentence_end:
-            #     print(f"[SENTENCE END DETECTED] But relying only on stable buffer timing")
+            #     self._debug_print(f"[SENTENCE END DETECTED] But relying only on stable buffer timing")
             
         except Exception as e:
-            print(f"Error in sentence segment processing: {e}")
+            self._debug_print(f"Error in sentence segment processing: {e}")
     
     def _send_to_llm(self, text):
         """Send completed sentence to LLM for processing"""
@@ -1096,14 +1121,14 @@ class WhisperStreamingTranscriberWithSpecials:
             self.process_thread.start()
             
             print("Listening with Fixed Dual Buffer System...")
-            print("- Text-only stable buffer (no audio buffer)")
-            print("- Simplified timer based ONLY on stable buffer updates")
-            print("- Timer RESETS when new content is committed to stable buffer")
-            print("- FIXED: Stable buffer preserved during noise rejections")
-            print("- Intelligent pattern detection with 3-way confirmation")
-            print("- Prevents exponential reprocessing")
-            print("- Foreign language detection and reset")
-            print("- LLM sending only when 10s passed since last stable buffer update")
+            self._debug_print("- Text-only stable buffer (no audio buffer)")
+            self._debug_print("- Simplified timer based ONLY on stable buffer updates")
+            self._debug_print("- Timer RESETS when new content is committed to stable buffer")
+            self._debug_print("- FIXED: Stable buffer preserved during noise rejections")
+            self._debug_print("- Intelligent pattern detection with 3-way confirmation")
+            self._debug_print("- Prevents exponential reprocessing")
+            self._debug_print("- Foreign language detection and reset")
+            self._debug_print("- LLM sending only when 10s passed since last stable buffer update")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
@@ -1131,14 +1156,14 @@ class WhisperStreamingTranscriberWithSpecials:
         # Process any remaining audio in active buffer
         if len(self.active_audio_buffer) > 0:
             try:
-                print("\n[PROCESSING FINAL SEGMENT]")
+                self._debug_print("\n[PROCESSING FINAL SEGMENT]")
                 self._process_sentence_segment(self.active_audio_buffer)
             except Exception as e:
-                print(f"Error processing final segment: {e}")
+                self._debug_print(f"Error processing final segment: {e}")
         
         # Finalize any pending sentence
         if self.last_transcription or self.stable_text_buffer:
-            print("\n[FINALIZING PENDING SENTENCE]")
+            self._debug_print("\n[FINALIZING PENDING SENTENCE]")
             self._finalize_sentence()
         
         # Wait for processing thread to finish
@@ -1150,9 +1175,9 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Print summary
         if self.completed_sentences:
-            print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
+            self._debug_print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
             for i, sentence in enumerate(self.completed_sentences, 1):
-                print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
+                self._debug_print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
     
     def close(self):
         """Clean up resources"""
