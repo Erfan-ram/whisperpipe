@@ -17,13 +17,12 @@ import sys
 import signal
 import queue
 import re
-from collections import deque
 from pynput import keyboard
 import whisper
 import torch
 
 class WhisperStreamingTranscriberWithSpecials:
-    def __init__(self, model_name="base.en", buffer_duration_seconds=15):
+    def __init__(self, model_name="base.en", buffer_duration_seconds=5.0):
         """
         Initialize the transcriber with OpenAI Whisper model
         
@@ -95,8 +94,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.foreign_language_rejection_count = 0
         self.max_foreign_rejections = 3  # Reset after 3 consecutive foreign language detections
         self.last_rejection_time = None
-        self.rejection_reset_timeout = 10.0  # Reset rejection count after 10 seconds
-        
+        self.rejection_reset_timeout = 5.0  # Reset rejection count after 5 seconds
         # Threading and synchronization
         self.process_thread = None
         self.lock = threading.Lock()
@@ -749,39 +747,39 @@ class WhisperStreamingTranscriberWithSpecials:
         
         return False
     
-    def _detect_sentence_end(self, text):
-        """
-        Detect if text contains sentence-ending punctuation
-        Returns: (is_sentence_end, is_pause_point)
-        """
-        if not text:
-            return False, False
+    # def _detect_sentence_end(self, text):
+    #     """
+    #     Detect if text contains sentence-ending punctuation
+    #     Returns: (is_sentence_end, is_pause_point)
+    #     """
+    #     if not text:
+    #         return False, False
         
-        text = text.strip()
+    #     text = text.strip()
         
-        # First check if this is a processing indicator - if so, don't end sentence
-        if self._is_processing_indicator(text):
-            print(f"[DEBUG] Processing indicator detected: '{text[-15:]}' - NOT ending sentence")
-            return False, False
+    #     # First check if this is a processing indicator - if so, don't end sentence
+    #     if self._is_processing_indicator(text):
+    #         print(f"[DEBUG] Processing indicator detected: '{text[-15:]}' - NOT ending sentence")
+    #         return False, False
         
-        # Check for real sentence endings
-        has_sentence_end = False
-        has_pause = False
+    #     # Check for real sentence endings
+    #     has_sentence_end = False
+    #     has_pause = False
         
-        # Look for sentence endings in the last few characters
-        for ending in self.sentence_endings:
-            if text.endswith(ending) or text.endswith(ending + ' '):
-                has_sentence_end = True
-                print(f"[DEBUG] Sentence end detected with '{ending}': '{text[-15:]}'")
-                break
+    #     # Look for sentence endings in the last few characters
+    #     for ending in self.sentence_endings:
+    #         if text.endswith(ending) or text.endswith(ending + ' '):
+    #             has_sentence_end = True
+    #             print(f"[DEBUG] Sentence end detected with '{ending}': '{text[-15:]}'")
+    #             break
         
-        # Check for pause points (commas, etc.)
-        for ending in self.pause_endings:
-            if text.endswith(ending) or text.endswith(ending + ' '):
-                has_pause = True
-                break
+    #     # Check for pause points (commas, etc.)
+    #     for ending in self.pause_endings:
+    #         if text.endswith(ending) or text.endswith(ending + ' '):
+    #             has_pause = True
+    #             break
         
-        return has_sentence_end, has_pause
+    #     return has_sentence_end, has_pause
     
     def _should_force_segmentation(self):
         """Check if we should force segmentation due to time limits"""
