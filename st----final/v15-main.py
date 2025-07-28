@@ -97,6 +97,9 @@ class WhisperStreamingTranscriberWithSpecials:
         self.max_foreign_rejections = 3  # Reset after 3 consecutive foreign language detections
         self.last_rejection_time = None
         self.rejection_reset_timeout = 5.0  # Reset rejection count after 5 seconds
+        # empty_transcribe detection parameters
+        self.empty_transcribe_rejection_count = 0
+        self.max_empty_rejections = 4  # Reset after 4 consecutive times
         # Threading and synchronization
         self.process_thread = None
         self.lock = threading.Lock()
@@ -979,10 +982,10 @@ class WhisperStreamingTranscriberWithSpecials:
                         self._debug_print("\033[91m\n[FORCE SEGMENTATION - Time limit reached]\033[0m")
                         self._finalize_sentence()
                 
-                    # if max_active_buffer:
-                    #     self._debug_print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
-                    # if self.sentence_start_time:
-                    #     self._debug_print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
+                    if max_active_buffer:
+                        self._debug_print(f"[ACTIVE BUFFER status] {len(self.active_audio_buffer)/self.RATE:.1f}s active audio buffer")
+                    if self.sentence_start_time:
+                        self._debug_print(f"[SENTENCE TIMING] {time.time() - self.sentence_start_time:.1f}s")
 
                 # Adaptive sleep
                 elapsed = time.time() - start_time
@@ -1014,10 +1017,17 @@ class WhisperStreamingTranscriberWithSpecials:
             )
             
             new_text = result["text"].strip()
+            # self._debug_print(f"\n[TRANSCRIPTION pure RESULT] -{new_text}-")
             
             if not new_text:
+                # only empty transcription found mode
+                self.empty_transcribe_rejection_count += 1
+                self._debug_print(f"[EMPTY TRANSCRIPTION FOUND] Count: {self.empty_transcribe_rejection_count}/{self.max_empty_rejections}")
+                if self.empty_transcribe_rejection_count >= self.max_empty_rejections:
+                    self.empty_transcribe_rejection_count = 0
+                    self._reset_sentence_state("Maximum empty transcriptions reached")
                 return
-            
+
             print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
             
             # Extract word-level timestamps
@@ -1175,9 +1185,9 @@ class WhisperStreamingTranscriberWithSpecials:
         
         # Print summary
         if self.completed_sentences:
-            self._debug_print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
+            print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
             for i, sentence in enumerate(self.completed_sentences, 1):
-                self._debug_print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
+                print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
     
     def close(self):
         """Clean up resources"""
@@ -1210,6 +1220,7 @@ def main():
     try:
         # Initialize the transcriber with OpenAI Whisper
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name=MODEL_NAME)
+        transcriber.debug_mode(False)
     except Exception as e:
         print(f"Failed to initialize transcriber: {e}")
         sys.exit(1)
