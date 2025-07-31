@@ -1015,6 +1015,25 @@ class WhisperStreamingTranscriberWithSpecials:
                 word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
+            # #TODO: idea : there is a methode also focused on silence detection to make the most of it but need a bit more resources
+            # Check last quarter of audio buffer for silence before full transcription
+            # quarter_samples = len(audio_buffer) // 4
+            # if quarter_samples > 0:
+            #     last_quarter = audio_buffer[-quarter_samples:]
+            #     # Quick silence check on last quarter
+            #     test_res = self.model.transcribe(
+            #         last_quarter, 
+            #         fp16=False, 
+            #         language="en",
+            #         suppress_tokens=None
+            #     )
+            #
+            #     # If last quarter is silent/empty, transcribe full buffer
+            #     if not test_res["text"].strip():
+            #         self._debug_print("[SILENCE DETECTED] Last quarter silent, processing full buffer")
+            #     else:
+            #         self._debug_print(f"[ACTIVITY DETECTED] Last quarter: '{test_res['text'].strip()}'")
+
             
             new_text = result["text"].strip()
             # self._debug_print(f"\n[TRANSCRIPTION pure RESULT] -{new_text}-")
@@ -1220,7 +1239,7 @@ def main():
     try:
         # Initialize the transcriber with OpenAI Whisper
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name=MODEL_NAME)
-        transcriber.debug_mode(False)
+        # transcriber.debug_mode(False)
     except Exception as e:
         print(f"Failed to initialize transcriber: {e}")
         sys.exit(1)
