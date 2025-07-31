@@ -15,13 +15,7 @@ import sys
 # Import the transcriber class
 # Note: This will fail if Whisper dependencies aren't installed, which is expected
 try:
-    sys.path.append('.')
-    # Import from main-stream.py (note: Python converts hyphens to underscores in imports)
-    import importlib.util
-    spec = importlib.util.spec_from_file_location("main_stream", "main-stream.py")
-    main_stream = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(main_stream)
-    WhisperStreamingTranscriberWithSpecials = main_stream.WhisperStreamingTranscriberWithSpecials
+    from main_stream import WhisperStreamingTranscriberWithSpecials
     TRANSCRIBER_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  Transcriber dependencies not available: {e}")
