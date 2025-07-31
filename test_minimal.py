@@ -15,7 +15,7 @@ def test_class_structure():
     print("Testing class structure and new methods...")
     
     # Read the main file and check for our new methods
-    with open('main-stream.py', 'r') as f:
+    with open('main_stream.py', 'r') as f:
         content = f.read()
     
     # Check for new methods
