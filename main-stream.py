@@ -104,6 +104,13 @@ class WhisperStreamingTranscriberWithSpecials:
         self.process_thread = None
         self.lock = threading.Lock()
         
+        # Callback system for LLM integration
+        self._llm_callback = None
+        
+        # Pause/Resume functionality
+        self._is_paused = False
+        self._pause_lock = threading.Lock()
+        
         # Initialize PyAudio
         try:
             self.p = pyaudio.PyAudio()
@@ -124,6 +131,79 @@ class WhisperStreamingTranscriberWithSpecials:
             print("Debug mode enabled")
         else:
             print("Debug mode disabled")
+    
+    def set_llm_callback(self, callback_function):
+        """
+        Set a callback function to handle text when it's sent to LLM
+        
+        Args:
+            callback_function: Function that takes a string (text) as parameter
+                             Example: def my_llm_handler(text):
+                                         print(f"Processing: {text}")
+                                         # Your LLM processing logic here
+        """
+        if callback_function is not None and not callable(callback_function):
+            raise ValueError("Callback function must be callable or None")
+        
+        self._llm_callback = callback_function
+        if callback_function:
+            print("LLM callback function registered")
+        else:
+            print("LLM callback function cleared")
+    
+    def pause_streaming(self):
+        """
+        Pause the audio streaming and processing temporarily
+        The audio stream continues but processing is paused
+        """
+        with self._pause_lock:
+            if not self.is_recording:
+                print("Transcriber is not currently running")
+                return False
+            
+            if self._is_paused:
+                print("Transcriber is already paused")
+                return False
+            
+            self._is_paused = True
+            print("Audio streaming paused")
+            return True
+    
+    def resume_streaming(self):
+        """
+        Resume the paused audio streaming and processing
+        """
+        with self._pause_lock:
+            if not self.is_recording:
+                print("Transcriber is not currently running")
+                return False
+            
+            if not self._is_paused:
+                print("Transcriber is not paused")
+                return False
+            
+            self._is_paused = False
+            print("Audio streaming resumed")
+            return True
+    
+    def is_paused(self):
+        """
+        Check if the transcriber is currently paused
+        
+        Returns:
+            bool: True if paused, False if running or stopped
+        """
+        with self._pause_lock:
+            return self._is_paused
+    
+    def is_running(self):
+        """
+        Check if the transcriber is currently running (not stopped)
+        
+        Returns:
+            bool: True if running (may be paused), False if stopped
+        """
+        return self.is_recording
     
     def _debug_print(self, message):
         """
@@ -905,6 +985,12 @@ class WhisperStreamingTranscriberWithSpecials:
         """Simplified audio processing with enhanced dual buffer management"""
         while self.is_recording:
             try:
+                # Check if paused - if so, sleep and continue
+                with self._pause_lock:
+                    if self._is_paused:
+                        time.sleep(0.1)
+                        continue
+                
                 chunk_count = 0
                 start_time = time.time()
                 
@@ -1097,13 +1183,24 @@ class WhisperStreamingTranscriberWithSpecials:
     def _send_to_llm(self, text):
         """Send completed sentence to LLM for processing"""
         print(f"\033[94m\n[LLM INPUT]: {text}\033[0m")
-        # Your LLM integration code here
-        # Example: response = your_llm_model.generate_answer(text)
-        # print(f"[LLM RESPONSE]: {response}")
+        
+        # If a callback is registered, use it; otherwise use default behavior
+        if self._llm_callback:
+            try:
+                self._llm_callback(text)
+            except Exception as e:
+                print(f"\033[91m[LLM CALLBACK ERROR]: {e}\033[0m")
+                # Fall back to default behavior on error
+                print(f"[LLM FALLBACK]: Using default behavior due to callback error")
+        else:
+            # Default behavior - just display the text
+            # Users can implement their own LLM integration by setting a callback
+            pass
     
     def start_streaming(self):
         """Start streaming from microphone and transcribing"""
         self.is_recording = True
+        self._is_paused = False  # Initialize pause state
         self.rolling_buffer = np.array([], dtype=np.float32)
         
         # Initialize enhanced dual buffer system (text only)
