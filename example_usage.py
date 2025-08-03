@@ -29,6 +29,9 @@ except Exception as e:
     WhisperStreamingTranscriberWithSpecials = None
 
 
+# Global variable to hold the transcriber instance for signal handling
+current_transcriber = None
+
 class LLMIntegrationExample:
     """Example class showing how to integrate with an LLM"""
     
@@ -94,6 +97,8 @@ def example_real_time_mode():
     # Create transcriber
     try:
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        global current_transcriber
+        current_transcriber = transcriber
         
         # Register the LLM callback
         transcriber.set_llm_callback(llm_integration.process_speech_text)
@@ -172,6 +177,8 @@ def example_llm_input_mode():
     # Create transcriber
     try:
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        global current_transcriber
+        current_transcriber = transcriber
         
         # Create pausing LLM integration
         pausing_llm = PausingLLMIntegration(transcriber)
@@ -224,6 +231,8 @@ def example_manual_control():
     
     try:
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        global current_transcriber
+        current_transcriber = transcriber
         transcriber.set_llm_callback(simple_callback)
         
         print("🎤 Starting transcriber...")
@@ -295,6 +304,17 @@ if __name__ == "__main__":
     # Handle interruption gracefully
     def signal_handler(sig, frame):
         print("\n\nExamples interrupted by user")
+        
+        # Properly clean up the transcriber if it exists
+        global current_transcriber
+        if current_transcriber is not None:
+            try:
+                print("Stopping transcriber and showing session summary...")
+                current_transcriber.stop_streaming()
+                current_transcriber.close()
+            except Exception as e:
+                print(f"Error during cleanup: {e}")
+        
         sys.exit(0)
     
     signal.signal(signal.SIGINT, signal_handler)

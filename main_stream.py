@@ -111,6 +111,9 @@ class WhisperStreamingTranscriberWithSpecials:
         self._is_paused = False
         self._pause_lock = threading.Lock()
         
+        # Summary tracking
+        self._summary_printed = False
+        
         # Initialize PyAudio
         try:
             self.p = pyaudio.PyAudio()
@@ -1180,6 +1183,32 @@ class WhisperStreamingTranscriberWithSpecials:
         except Exception as e:
             self._debug_print(f"Error in sentence segment processing: {e}")
     
+    def print_session_summary(self):
+        """
+        Print a summary of the transcription session
+        This method can be called independently or automatically on stop
+        """
+        if self.completed_sentences:
+            print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
+            for i, sentence in enumerate(self.completed_sentences, 1):
+                print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
+        else:
+            print("\n[SESSION SUMMARY] No completed sentences were transcribed.")
+    
+    def get_all_transcribed_text(self):
+        """
+        Get all transcribed text as a single list of strings
+        Returns a list of all completed sentence texts
+        """
+        return [sentence['text'] for sentence in self.completed_sentences]
+    
+    def get_completed_sentences(self):
+        """
+        Get all completed sentences with metadata
+        Returns the complete list of sentence dictionaries with timestamp and duration
+        """
+        return self.completed_sentences.copy()
+    
     def _send_to_llm(self, text):
         """Send completed sentence to LLM for processing"""
         print(f"\033[94m\n[LLM INPUT]: {text}\033[0m")
@@ -1224,6 +1253,9 @@ class WhisperStreamingTranscriberWithSpecials:
         # Reset foreign language detection state
         self.foreign_language_rejection_count = 0
         self.last_rejection_time = None
+        
+        # Reset summary tracking
+        self._summary_printed = False
         
         # Open PyAudio stream
         try:
@@ -1299,20 +1331,31 @@ class WhisperStreamingTranscriberWithSpecials:
             except Exception as e:
                 print(f"Error joining processing thread: {e}")
         
-        # Print summary
-        if self.completed_sentences:
-            print(f"\n[SESSION SUMMARY] Processed {len(self.completed_sentences)} sentences:")
-            for i, sentence in enumerate(self.completed_sentences, 1):
-                print(f"  {i}. [{sentence['timestamp']}] {sentence['text']}")
+        # Print summary using the dedicated method
+        self.print_session_summary()
+        self._summary_printed = True  # Mark that summary has been printed
     
     def close(self):
-        """Clean up resources"""
+        """Clean up resources and print final summary"""
         self.stop_streaming()
+        
+        # Print summary if it hasn't been printed yet (safety measure)
+        if self.completed_sentences and hasattr(self, '_summary_printed') and not self._summary_printed:
+            self.print_session_summary()
         
         try:
             self.p.terminate()
         except Exception as e:
             print(f"Error terminating PyAudio: {e}")
+    
+    def __del__(self):
+        """Destructor to ensure cleanup happens even if close() isn't called"""
+        try:
+            if hasattr(self, 'completed_sentences') and self.completed_sentences:
+                if not hasattr(self, '_summary_printed') or not self._summary_printed:
+                    self.print_session_summary()
+        except:
+            pass  # Ignore errors in destructor
 
 
 def signal_handler(sig, frame):
