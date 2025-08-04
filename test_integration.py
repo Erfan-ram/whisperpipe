@@ -18,7 +18,7 @@ class MockPyAudio:
     def terminate(self): pass
 
 # Create a minimal version of the transcriber for testing
-class MockWhisperStreamingTranscriberWithSpecials:
+class Mockwhisperpipe:
     def __init__(self):
         # Initialize basic attributes
         self.is_recording = False
@@ -137,7 +137,7 @@ def test_callback_functionality():
     def error_callback(text):
         raise Exception("Test error in callback")
     
-    transcriber = MockWhisperStreamingTranscriberWithSpecials()
+    transcriber = Mockwhisperpipe()
     
     # Test 1: Register valid callback
     print("\n1. Testing callback registration...")
@@ -184,7 +184,7 @@ def test_pause_resume_functionality():
     print("TESTING PAUSE/RESUME FUNCTIONALITY")
     print("=" * 60)
     
-    transcriber = MockWhisperStreamingTranscriberWithSpecials()
+    transcriber = Mockwhisperpipe()
     
     # Test 1: Status when not running
     print("\n1. Testing status when not running...")
@@ -275,7 +275,7 @@ def test_integration_scenario():
         print(f"🤖 [LLM] Response: {response}")
         return response
     
-    transcriber = MockWhisperStreamingTranscriberWithSpecials()
+    transcriber = Mockwhisperpipe()
     transcriber.set_def_callback(llm_integration)
     
     # Simulate conversation flow

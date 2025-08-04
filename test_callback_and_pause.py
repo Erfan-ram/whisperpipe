@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Test script to demonstrate the new callback and pause/resume functionality
-of the WhisperStreamingTranscriberWithSpecials class.
+of the whisperpipe class.
 
 This script shows how to:
 1. Register a custom LLM callback function
@@ -15,6 +15,9 @@ sys.path.append(os.path.dirname(__file__))
 
 import time
 import threading
+
+# Import whisperpipe (commented out to avoid dependencies in test environment)
+# from whisperpipe import whisperpipe
 
 
 def custom_llm_handler(text):
@@ -46,7 +49,7 @@ def test_callback_functionality():
     
     # For testing purposes, we'll simulate the behavior without actually loading Whisper
     # In real usage, you would initialize normally:
-    # transcriber = WhisperStreamingTranscriberWithSpecials()
+    # transcriber = whisperpipe()
     
     # Test callback registration
     print("\n1. Testing callback registration...")
@@ -79,7 +82,7 @@ def test_pause_resume_functionality():
     
     # For testing purposes, we'll simulate the behavior
     # In real usage:
-    # transcriber = WhisperStreamingTranscriberWithSpecials()
+    # transcriber = whisperpipe()
     # transcriber.start_streaming()
     
     # Test pause when not running
@@ -122,7 +125,7 @@ This demonstrates how a user would integrate the transcriber:
 
 ```python
 # 1. Create transcriber
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 
 # 2. Register custom LLM handler
 def my_llm_processor(text):

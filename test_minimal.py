@@ -14,8 +14,8 @@ def test_class_structure():
     
     print("Testing class structure and new methods...")
     
-    # Read the main file and check for our new methods
-    with open('main_stream.py', 'r') as f:
+    # Read the core file and check for our new methods
+    with open('whisperpipe/core.py', 'r') as f:
         content = f.read()
     
     # Check for new methods

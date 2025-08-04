@@ -1,0 +1,44 @@
+[tool.poetry]
+name = "whisperpipe"
+version = "1.0.0"
+description = "Real-time speech-to-text streaming with OpenAI Whisper"
+authors = ["Erfan Ramezani <erfanramezany245@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+homepage = "https://github.com/Erfan-ram/whisperpipe"
+repository = "https://github.com/Erfan-ram/whisperpipe"
+keywords = ["whisper", "speech-to-text", "real-time", "audio", "transcription", "streaming"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[tool.poetry.dependencies]
+python = "^3.8.1"
+openai-whisper = "^20231117"
+torch = "^2.0.0"
+pyaudio = "^0.2.11"
+numpy = "^1.21.0"
+pynput = "^1.7.6"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.0"
+black = "^23.0"
+flake8 = "^6.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/Erfan-ram/whisperpipe/issues"
+"Documentation" = "https://github.com/Erfan-ram/whisperpipe/blob/main/README.md"

@@ -1,0 +1,6 @@
+include README.md
+include LICENSE
+recursive-include whisperpipe *.py
+recursive-exclude tests *
+global-exclude *.pyc
+global-exclude __pycache__
