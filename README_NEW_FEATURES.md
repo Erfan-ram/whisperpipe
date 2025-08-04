@@ -1,20 +1,55 @@
-# Audio2Text - Enhanced with Callback and Pause/Resume Functionality
+# whisperpipe - Enhanced Audio2Text Package
 
-This enhanced version of Audio2Text provides improved adaptability for various use cases, including real-time streaming and LLM integration scenarios.
+This enhanced version of Audio2Text is now packaged as `whisperpipe` - a pip-installable package that provides improved adaptability for various use cases, including real-time streaming and LLM integration scenarios.
+
+## Installation
+
+### From PyPI (when published)
+```bash
+pip install whisperpipe
+```
+
+### From GitHub
+```bash
+pip install git+https://github.com/Erfan-ram/whisperpipe.git
+```
 
 ## New Features
 
-### 1. LLM Callback Integration
+### 1. Modern Package Structure
+
+The package is now properly structured for pip installation with:
+- Standard Python package layout
+- Poetry-based dependency management
+- Proper versioning and metadata
+- Comprehensive documentation
+
+### 2. Updated API
+
+The main class is now called `whisperpipe` and supports the requested API signature:
+
+```python
+from whisperpipe import whisperpipe
+
+transcriber = whisperpipe(
+    model_name="base.en",
+    language="en",
+    finalization_delay=10.0,
+    processing_interval=1.0
+)
+```
+
+### 3. LLM Callback Integration
 
 The `_send_to_llm()` method now supports custom callback functions, allowing users to connect their own LLM processing logic or any other processing logic.
 
 #### Usage:
 
 ```python
-from main_stream import WhisperStreamingTranscriberWithSpecials
+from whisperpipe import whisperpipe
 
 # Create transcriber
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 
 # Define your LLM handler
 def my_llm_handler(text):
@@ -36,7 +71,7 @@ transcriber.start_streaming()
 - `set_def_callback(callback_function)`: Register a callback function
 - `set_def_callback(None)`: Clear the callback (use default behavior)
 
-### 2. Pause/Resume Functionality
+### 4. Pause/Resume Functionality
 
 Control the transcriber state dynamically to support turn-based conversations and LLM input scenarios.
 
@@ -77,7 +112,7 @@ def llm_processor(text):
     )
     print(f"LLM: {response.choices[0].message.content}")
 
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 transcriber.set_def_callback(llm_processor)
 transcriber.start_streaming()
 
@@ -100,7 +135,7 @@ def interactive_llm_processor(text):
     # Resume transcriber for next input
     transcriber.resume_streaming()
 
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 transcriber.set_def_callback(interactive_llm_processor)
 transcriber.start_streaming()
 
@@ -110,7 +145,7 @@ transcriber.start_streaming()
 ### Scenario 3: Manual Control
 
 ```python
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 transcriber.start_streaming()
 
 # Manual control based on application logic
@@ -179,7 +214,7 @@ The changes are fully backward compatible. Existing code will work unchanged:
 
 ```python
 # This still works exactly as before
-transcriber = WhisperStreamingTranscriberWithSpecials()
+transcriber = whisperpipe()
 transcriber.start_streaming()
 # Text will be printed to console (default behavior)
 ```
