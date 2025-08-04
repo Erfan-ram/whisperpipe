@@ -52,18 +52,18 @@ def test_callback_functionality():
     print("\n1. Testing callback registration...")
     
     # This would normally work:
-    # transcriber.set_llm_callback(custom_llm_handler)
+    # transcriber.set_def_callback(custom_llm_handler)
     # print("✓ Callback registered successfully")
     
     # Test invalid callback
     # try:
-    #     transcriber.set_llm_callback("not_a_function")
+    #     transcriber.set_def_callback("not_a_function")
     #     print("✗ Should have raised an error")
     # except ValueError as e:
     #     print(f"✓ Correctly rejected invalid callback: {e}")
     
     # Test clearing callback
-    # transcriber.set_llm_callback(None)
+    # transcriber.set_def_callback(None)
     # print("✓ Callback cleared successfully")
     
     print("✓ Callback functionality tests would pass with real transcriber")
@@ -139,7 +139,7 @@ def my_llm_processor(text):
     # Resume transcriber for next input
     transcriber.resume_streaming()
 
-transcriber.set_llm_callback(my_llm_processor)
+transcriber.set_def_callback(my_llm_processor)
 
 # 3. Start streaming
 transcriber.start_streaming()

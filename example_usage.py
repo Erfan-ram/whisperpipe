@@ -101,7 +101,7 @@ def example_real_time_mode():
         current_transcriber = transcriber
         
         # Register the LLM callback
-        # transcriber.set_llm_callback(llm_integration.process_speech_text)
+        # transcriber.set_def_callback(llm_integration.process_speech_text)
         
         # Start streaming
         if transcriber.start_streaming():
@@ -184,7 +184,7 @@ def example_llm_input_mode():
         pausing_llm = PausingLLMIntegration(transcriber)
         
         # Register the callback
-        transcriber.set_llm_callback(pausing_llm.process_with_pause)
+        transcriber.set_def_callback(pausing_llm.process_with_pause)
         
         # Start streaming
         if transcriber.start_streaming():
@@ -233,7 +233,7 @@ def example_manual_control():
         transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
         global current_transcriber
         current_transcriber = transcriber
-        transcriber.set_llm_callback(simple_callback)
+        transcriber.set_def_callback(simple_callback)
         
         print("🎤 Starting transcriber...")
         if transcriber.start_streaming():
@@ -291,7 +291,7 @@ def main():
         print("1. Install dependencies: pip install openai-whisper torch pyaudio numpy pynput")
         print("2. Import: from main_stream import WhisperStreamingTranscriberWithSpecials")
         print("3. Create instance: transcriber = WhisperStreamingTranscriberWithSpecials()")
-        print("4. Register callback: transcriber.set_llm_callback(your_function)")
+        print("4. Register callback: transcriber.set_def_callback(your_function)")
         print("5. Start streaming: transcriber.start_streaming()")
         print("6. Use pause/resume as needed: transcriber.pause_streaming(), transcriber.resume_streaming()")
         print("7. Stop when done: transcriber.stop_streaming()")

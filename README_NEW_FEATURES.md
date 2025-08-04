@@ -6,7 +6,7 @@ This enhanced version of Audio2Text provides improved adaptability for various u
 
 ### 1. LLM Callback Integration
 
-The `_send_to_llm()` method now supports custom callback functions, allowing users to connect their own LLM processing logic.
+The `_send_to_llm()` method now supports custom callback functions, allowing users to connect their own LLM processing logic or any other processing logic.
 
 #### Usage:
 
@@ -25,7 +25,7 @@ def my_llm_handler(text):
     return response
 
 # Register the callback
-transcriber.set_llm_callback(my_llm_handler)
+transcriber.set_def_callback(my_llm_handler)
 
 # Start streaming
 transcriber.start_streaming()
@@ -33,8 +33,8 @@ transcriber.start_streaming()
 
 #### Methods:
 
-- `set_llm_callback(callback_function)`: Register a callback function
-- `set_llm_callback(None)`: Clear the callback (use default behavior)
+- `set_def_callback(callback_function)`: Register a callback function
+- `set_def_callback(None)`: Clear the callback (use default behavior)
 
 ### 2. Pause/Resume Functionality
 
@@ -78,7 +78,7 @@ def llm_processor(text):
     print(f"LLM: {response.choices[0].message.content}")
 
 transcriber = WhisperStreamingTranscriberWithSpecials()
-transcriber.set_llm_callback(llm_processor)
+transcriber.set_def_callback(llm_processor)
 transcriber.start_streaming()
 
 # Continuous processing - speech automatically sent to LLM
@@ -101,7 +101,7 @@ def interactive_llm_processor(text):
     transcriber.resume_streaming()
 
 transcriber = WhisperStreamingTranscriberWithSpecials()
-transcriber.set_llm_callback(interactive_llm_processor)
+transcriber.set_def_callback(interactive_llm_processor)
 transcriber.start_streaming()
 
 # Turn-based conversation flow
@@ -131,7 +131,7 @@ def potentially_failing_callback(text):
         raise Exception("LLM API error")
     return process_text(text)
 
-transcriber.set_llm_callback(potentially_failing_callback)
+transcriber.set_def_callback(potentially_failing_callback)
 # If callback fails, transcriber falls back to default behavior
 ```
 
@@ -188,7 +188,7 @@ To use new features, simply add:
 
 ```python
 # Add callback for custom processing
-transcriber.set_llm_callback(your_function)
+transcriber.set_def_callback(your_function)
 
 # Add pause/resume control as needed
 transcriber.pause_streaming()

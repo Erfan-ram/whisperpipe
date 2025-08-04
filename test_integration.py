@@ -22,18 +22,18 @@ class MockWhisperStreamingTranscriberWithSpecials:
     def __init__(self):
         # Initialize basic attributes
         self.is_recording = False
-        self._llm_callback = None
+        self._def_callback = None
         self._is_paused = False
         self._pause_lock = threading.Lock()
         self.stable_text_buffer = ""
         self.completed_sentences = []
         
-    def set_llm_callback(self, callback_function):
+    def set_def_callback(self, callback_function):
         """Set a callback function to handle text when it's sent to LLM"""
         if callback_function is not None and not callable(callback_function):
             raise ValueError("Callback function must be callable or None")
         
-        self._llm_callback = callback_function
+        self._def_callback = callback_function
         if callback_function:
             print("LLM callback function registered")
         else:
@@ -96,9 +96,9 @@ class MockWhisperStreamingTranscriberWithSpecials:
         print(f"\033[94m\n[LLM INPUT]: {text}\033[0m")
         
         # If a callback is registered, use it; otherwise use default behavior
-        if self._llm_callback:
+        if self._def_callback:
             try:
-                result = self._llm_callback(text)
+                result = self._def_callback(text)
                 return result
             except Exception as e:
                 print(f"\033[91m[LLM CALLBACK ERROR]: {e}\033[0m")
@@ -141,12 +141,12 @@ def test_callback_functionality():
     
     # Test 1: Register valid callback
     print("\n1. Testing callback registration...")
-    transcriber.set_llm_callback(test_callback)
+    transcriber.set_def_callback(test_callback)
     
     # Test 2: Invalid callback
     print("\n2. Testing invalid callback rejection...")
     try:
-        transcriber.set_llm_callback("not_a_function")
+        transcriber.set_def_callback("not_a_function")
         print("❌ Should have raised ValueError")
     except ValueError as e:
         print(f"✅ Correctly rejected invalid callback: {e}")
@@ -161,13 +161,13 @@ def test_callback_functionality():
     
     # Test 4: Error handling
     print("\n4. Testing error handling...")
-    transcriber.set_llm_callback(error_callback)
+    transcriber.set_def_callback(error_callback)
     transcriber.simulate_sentence_completion("Error test")
     print("✅ Error handling works")
     
     # Test 5: Clear callback
     print("\n5. Testing callback clearing...")
-    transcriber.set_llm_callback(None)
+    transcriber.set_def_callback(None)
     callback_calls.clear()
     transcriber.simulate_sentence_completion("No callback")
     if len(callback_calls) == 0:
@@ -276,7 +276,7 @@ def test_integration_scenario():
         return response
     
     transcriber = MockWhisperStreamingTranscriberWithSpecials()
-    transcriber.set_llm_callback(llm_integration)
+    transcriber.set_def_callback(llm_integration)
     
     # Simulate conversation flow
     transcriber.start_streaming()

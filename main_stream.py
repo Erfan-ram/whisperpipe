@@ -104,7 +104,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.lock = threading.Lock()
         
         # Callback system for LLM integration
-        self._llm_callback = None
+        self._def_callback = None
         
         # Pause/Resume functionality
         self._is_paused = False
@@ -134,7 +134,7 @@ class WhisperStreamingTranscriberWithSpecials:
         else:
             print("Debug mode disabled")
     
-    def set_llm_callback(self, callback_function):
+    def set_def_callback(self, callback_function) -> str:
         """
         Set a callback function to handle text when it's sent to LLM
         
@@ -143,11 +143,13 @@ class WhisperStreamingTranscriberWithSpecials:
                              Example: def my_llm_handler(text):
                                          print(f"Processing: {text}")
                                          # Your LLM processing logic here
+        Returns:
+            str: A message indicating the result of the callback processing
         """
         if callback_function is not None and not callable(callback_function):
             raise ValueError("Callback function must be callable or None")
         
-        self._llm_callback = callback_function
+        self._def_callback = callback_function
         if callback_function:
             print("LLM callback function registered")
         else:
@@ -1221,9 +1223,9 @@ class WhisperStreamingTranscriberWithSpecials:
         print(f"\033[94m\n[LLM INPUT]: {text}\033[0m")
         
         # If a callback is registered, use it; otherwise use default behavior
-        if self._llm_callback:
+        if self._def_callback:
             try:
-                self._llm_callback(text)
+                self._def_callback(text)
             except Exception as e:
                 print(f"\033[91m[LLM CALLBACK ERROR]: {e}\033[0m")
                 # Fall back to default behavior on error

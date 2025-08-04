@@ -20,7 +20,7 @@ def test_class_structure():
     
     # Check for new methods
     required_methods = [
-        'set_llm_callback',
+        'set_def_callback',
         'pause_streaming', 
         'resume_streaming',
         'is_paused',
@@ -36,10 +36,10 @@ def test_class_structure():
             print(f"✗ Missing method: {method}")
     
     # Check for new attributes in __init__
-    if '_llm_callback = None' in content:
-        print("✓ Found _llm_callback attribute")
+    if '_def_callback = None' in content:
+        print("✓ Found _def_callback attribute")
     else:
-        print("✗ Missing _llm_callback attribute")
+        print("✗ Missing _def_callback attribute")
         
     if '_is_paused = False' in content:
         print("✓ Found _is_paused attribute")
@@ -52,7 +52,7 @@ def test_class_structure():
         print("✗ Missing _pause_lock attribute")
     
     # Check callback handling in _send_to_llm
-    if 'if self._llm_callback:' in content:
+    if 'if self._def_callback:' in content:
         print("✓ Found callback handling in _send_to_llm")
     else:
         print("✗ Missing callback handling in _send_to_llm")
@@ -82,7 +82,7 @@ def test_callback_function():
     # Test callback validation
     try:
         # This would normally test the actual method:
-        # transcriber.set_llm_callback("not_a_function") 
+        # transcriber.set_def_callback("not_a_function") 
         # But we'll simulate the validation logic
         if callable("not_a_function"):
             print("✗ Should reject non-callable")
@@ -111,7 +111,7 @@ def main():
         if structure_ok and callback_ok:
             print("\n✅ ALL MINIMAL TESTS PASSED")
             print("\nThe refactored Audio2Text includes:")
-            print("✓ set_llm_callback() method for custom LLM integration")
+            print("✓ set_def_callback() method for custom LLM integration")
             print("✓ pause_streaming() method to pause processing")
             print("✓ resume_streaming() method to resume processing")
             print("✓ is_paused() method to check pause status")
