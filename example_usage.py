@@ -166,7 +166,7 @@ def example_llm_input_mode():
             
             # Simulate speaking the response (pause before resuming)
             print("🔊 [SPEAKING] LLM is speaking response...")
-            time.sleep(1)
+            time.sleep(10)
             
             # Resume the transcriber for next input
             if self.transcriber.resume_streaming():
@@ -194,9 +194,9 @@ def example_llm_input_mode():
             # Run for demonstration (or until interrupted)
             try:
                 start_time = time.time()
-                while time.time() - start_time < 30:  # Run for 30 seconds in demo
-                    time.sleep(1)
-                    
+                while time.time() - start_time < 300:  # Run for 300 seconds in demo
+                    time.sleep(10)
+
                     # Show status periodically
                     if int(time.time() - start_time) % 10 == 0:
                         status = "PAUSED" if transcriber.is_paused() else "LISTENING"
@@ -282,8 +282,8 @@ def main():
     # Show API usage examples without actually running (since we may not have deps)
     try:
         # This would work with full dependencies:
-        example_real_time_mode()
-        # example_llm_input_mode() 
+        # example_real_time_mode()
+        example_llm_input_mode()
         # example_manual_control()
         
         print("✅ API structure demonstrated successfully")

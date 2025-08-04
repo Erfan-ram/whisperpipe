@@ -74,7 +74,7 @@ class WhisperStreamingTranscriberWithSpecials:
         self.completed_sentences = []  # Store completed sentences
         self.sentence_start_time = None  # Track when current sentence started
         self.max_sentence_duration = 120.0  # Max sentence duration
-        self.max_active_buffer_duration = 30.0  # Max active buffer duration
+        self.max_active_buffer_duration = 25.0  # Max active buffer duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
         
         # Simplified Timer Logic - Only stable buffer based
@@ -998,6 +998,14 @@ class WhisperStreamingTranscriberWithSpecials:
                 
                 # Check if we should finalize after delay period (simplified logic)
                 if self._should_finalize_after_delay():
+                    
+                    # ---------------- new logic ----------------
+                    # Process only first 1/2 of buffer since user likely didn't speak at the end
+                    self._debug_print(f" Just proccessing first 1/2 of active audio buffer in last transcription")
+                    one_half_buffer = self.active_audio_buffer[:len(self.active_audio_buffer)//2]
+                    if len(one_half_buffer) > int(self.RATE * 0.3):  # Ensure minimum size
+                        self._process_sentence_segment(one_half_buffer)
+                    # ---------------- new logic ----------------
                     self._finalize_sentence()
                 
                 # Check if we should reset due to foreign language detection
