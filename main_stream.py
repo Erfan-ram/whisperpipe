@@ -12,7 +12,6 @@ import numpy as np
 import pyaudio
 import threading
 import time
-import os
 import sys
 import signal
 import queue
@@ -1224,8 +1223,8 @@ class WhisperStreamingTranscriberWithSpecials:
         else:
             # Default behavior - just display the text
             # Users can implement their own LLM integration by setting a callback
-            pass
-    
+            print(f"\033[93m As user didnt set a callback, it will just print the text , you can also get text using get_all_transcribed_text() and get_completed_sentences() methods\033[0m")
+
     def start_streaming(self):
         """Start streaming from microphone and transcribing"""
         self.is_recording = True
