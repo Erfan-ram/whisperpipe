@@ -101,7 +101,7 @@ def example_real_time_mode():
         current_transcriber = transcriber
         
         # Register the LLM callback
-        transcriber.set_llm_callback(llm_integration.process_speech_text)
+        # transcriber.set_llm_callback(llm_integration.process_speech_text)
         
         # Start streaming
         if transcriber.start_streaming():
@@ -282,7 +282,7 @@ def main():
     # Show API usage examples without actually running (since we may not have deps)
     try:
         # This would work with full dependencies:
-        # example_real_time_mode()
+        example_real_time_mode()
         # example_llm_input_mode() 
         # example_manual_control()
         
@@ -311,6 +311,15 @@ if __name__ == "__main__":
             try:
                 print("Stopping transcriber and showing session summary...")
                 current_transcriber.stop_streaming()
+                
+                # print("Transcribed Text:")
+                all_text = current_transcriber.get_all_transcribed_text()
+                # print(all_text)
+
+                # print("Completed Sentences Report:")
+                all_report = current_transcriber.get_completed_sentences()
+                # print(all_report)
+
                 current_transcriber.close()
             except Exception as e:
                 print(f"Error during cleanup: {e}")
