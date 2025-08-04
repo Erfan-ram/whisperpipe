@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Example usage script demonstrating the new callback and pause/resume functionality
-of the WhisperStreamingTranscriberWithSpecials class.
+of the whisperpipe class.
 
 This example shows two main usage scenarios:
 1. Real-time streaming with custom LLM integration
@@ -15,18 +15,18 @@ import sys
 # Import the transcriber class
 # Note: This will fail if Whisper dependencies aren't installed, which is expected
 try:
-    from main_stream import WhisperStreamingTranscriberWithSpecials
+    from whisperpipe import whisperpipe
     TRANSCRIBER_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  Transcriber dependencies not available: {e}")
     print("This is expected in test environments. API examples will still be shown.\n")
     TRANSCRIBER_AVAILABLE = False
-    WhisperStreamingTranscriberWithSpecials = None
+    whisperpipe = None
 except Exception as e:
     print(f"⚠️  Could not load transcriber: {e}")
     print("This is expected in test environments. API examples will still be shown.\n")
     TRANSCRIBER_AVAILABLE = False
-    WhisperStreamingTranscriberWithSpecials = None
+    whisperpipe = None
 
 
 # Global variable to hold the transcriber instance for signal handling
@@ -96,7 +96,7 @@ def example_real_time_mode():
     
     # Create transcriber
     try:
-        transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        transcriber = whisperpipe(model_name="base.en")
         global current_transcriber
         current_transcriber = transcriber
         
@@ -176,7 +176,7 @@ def example_llm_input_mode():
     
     # Create transcriber
     try:
-        transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        transcriber = whisperpipe(model_name="base.en")
         global current_transcriber
         current_transcriber = transcriber
         
@@ -230,7 +230,7 @@ def example_manual_control():
         print(f"📝 [CAPTURED] {text}")
     
     try:
-        transcriber = WhisperStreamingTranscriberWithSpecials(model_name="base.en")
+        transcriber = whisperpipe(model_name="base.en")
         global current_transcriber
         current_transcriber = transcriber
         transcriber.set_def_callback(simple_callback)
@@ -289,8 +289,8 @@ def main():
         print("✅ API structure demonstrated successfully")
         print("\n🔧 To use in your project:")
         print("1. Install dependencies: pip install openai-whisper torch pyaudio numpy pynput")
-        print("2. Import: from main_stream import WhisperStreamingTranscriberWithSpecials")
-        print("3. Create instance: transcriber = WhisperStreamingTranscriberWithSpecials()")
+        print("2. Import: from whisperpipe import whisperpipe")
+        print("3. Create instance: transcriber = whisperpipe()")
         print("4. Register callback: transcriber.set_def_callback(your_function)")
         print("5. Start streaming: transcriber.start_streaming()")
         print("6. Use pause/resume as needed: transcriber.pause_streaming(), transcriber.resume_streaming()")
