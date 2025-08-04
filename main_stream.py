@@ -1319,9 +1319,14 @@ class WhisperStreamingTranscriberWithSpecials:
                 self._debug_print(f"Error processing final segment: {e}")
         
         # Finalize any pending sentence
-        if self.last_transcription or self.stable_text_buffer:
-            self._debug_print("\n[FINALIZING PENDING SENTENCE]")
-            self._finalize_sentence()
+        # if self.last_transcription or self.stable_text_buffer:
+        #     self._debug_print("\n[FINALIZING PENDING SENTENCE]")
+        #     self._finalize_sentence()
+        
+        # Finalize just stable pending sentence
+        if self.stable_text_buffer:
+            self._debug_print("\n[FINALIZING STABLE SENTENCE]")
+            self._finalize_sentence(final_text=self.stable_text_buffer)
         
         # Wait for processing thread to finish
         if self.process_thread and self.process_thread.is_alive():
