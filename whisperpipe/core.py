@@ -1007,10 +1007,10 @@ class whisperpipe:
                     
                     # ---------------- new logic ----------------
                     # Process only first 1/2 of buffer since user likely didn't speak at the end
-                    self._debug_print(f" Just proccessing first 1/2 of active audio buffer in last transcription")
-                    one_half_buffer = self.active_audio_buffer[:len(self.active_audio_buffer)//2]
-                    if len(one_half_buffer) > int(self.RATE * 0.3):  # Ensure minimum size
-                        self._process_sentence_segment(one_half_buffer)
+                    self._debug_print(f" Just proccessing first 1/3 of active audio buffer in last transcription")
+                    one_third_buffer = self.active_audio_buffer[:len(self.active_audio_buffer)//3]
+                    if len(one_third_buffer) > int(self.RATE * 0.3):  # Ensure minimum size
+                        self._process_sentence_segment(one_third_buffer)
                     # ---------------- new logic ----------------
                     self._finalize_sentence()
                 

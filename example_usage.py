@@ -282,8 +282,8 @@ def main():
     # Show API usage examples without actually running (since we may not have deps)
     try:
         # This would work with full dependencies:
-        # example_real_time_mode()
-        example_llm_input_mode()
+        example_real_time_mode()
+        # example_llm_input_mode()
         # example_manual_control()
         
         print("✅ API structure demonstrated successfully")
