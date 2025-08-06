@@ -20,6 +20,15 @@ from pynput import keyboard
 import whisper
 import torch
 
+# Try to import sounddevice, but handle gracefully if not available
+try:
+    import sounddevice as sd
+    SOUNDDEVICE_AVAILABLE = True
+except (ImportError, OSError) as e:
+    SOUNDDEVICE_AVAILABLE = False
+    print(f"[WARNING] sounddevice not available: {e}")
+    print("[INFO] Audio device management will use PyAudio fallback")
+
 class whisperpipe:
     def __init__(self, model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
         """
@@ -124,6 +133,190 @@ class whisperpipe:
             print(f"Error initializing PyAudio: {e}")
             sys.exit(1)
         self.stream = None
+        
+        # Audio device management
+        self._selected_input_device = None
+        
+        # Setup signal handling for graceful shutdown
+        self._setup_signal_handling()
+    
+    def _setup_signal_handling(self):
+        """Setup signal handlers for graceful shutdown"""
+        def signal_handler(sig, frame):
+            print(f"\n[SIGNAL] Received signal {sig}. Shutting down gracefully...")
+            self.stop_streaming()
+            self.close()
+            print("Transcription ended.")
+            sys.exit(0)
+        
+        # Register signal handlers
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
+        self._debug_print("[SIGNAL] Signal handlers registered (SIGINT, SIGTERM)")
+    
+    def input_devices(self):
+        """
+        List all available audio input devices with their IDs
+        
+        Returns:
+            list: List of dictionaries containing device info
+                 Each dict has keys: 'id', 'name', 'channels', 'default_samplerate'
+        """
+        devices = []
+        
+        if SOUNDDEVICE_AVAILABLE:
+            try:
+                device_list = sd.query_devices()
+                
+                for i, device in enumerate(device_list):
+                    # Only include devices that support input
+                    if device['max_input_channels'] > 0:
+                        devices.append({
+                            'id': i,
+                            'name': device['name'],
+                            'channels': device['max_input_channels'],
+                            'default_samplerate': device['default_samplerate'],
+                            'is_default': i == sd.default.device[0] if sd.default.device[0] is not None else False
+                        })
+                
+            except Exception as e:
+                print(f"Error querying audio devices with sounddevice: {e}")
+                devices = self._get_pyaudio_devices()
+        else:
+            # Fallback to PyAudio device listing
+            devices = self._get_pyaudio_devices()
+        
+        # Print devices for user convenience
+        if devices:
+            print("\n[AUDIO DEVICES] Available input devices:")
+            for device in devices:
+                default_marker = " (DEFAULT)" if device.get('is_default', False) else ""
+                print(f"  ID {device['id']}: {device['name']}{default_marker}")
+                print(f"    Channels: {device['channels']}, Sample Rate: {device.get('default_samplerate', 'Unknown')}")
+        else:
+            print("\n[AUDIO DEVICES] No input devices found or error querying devices")
+        
+        return devices
+    
+    def _get_pyaudio_devices(self):
+        """
+        Get audio devices using PyAudio as fallback when sounddevice is not available
+        
+        Returns:
+            list: List of device dictionaries
+        """
+        devices = []
+        
+        try:
+            for i in range(self.p.get_device_count()):
+                device_info = self.p.get_device_info_by_index(i)
+                
+                # Only include devices that support input
+                if device_info['maxInputChannels'] > 0:
+                    devices.append({
+                        'id': i,
+                        'name': device_info['name'],
+                        'channels': device_info['maxInputChannels'],
+                        'default_samplerate': device_info['defaultSampleRate'],
+                        'is_default': i == self.p.get_default_input_device_info()['index']
+                    })
+                    
+        except Exception as e:
+            print(f"Error querying PyAudio devices: {e}")
+        
+        return devices
+    
+    def set_input_device(self, device_id):
+        """
+        Set a specific audio input device by ID
+        
+        Args:
+            device_id (int): Device ID from input_devices() method
+            
+        Returns:
+            bool: True if device was set successfully, False otherwise
+        """
+        try:
+            # Check if we're currently recording - can't change device while streaming
+            if self.is_recording:
+                print("[ERROR] Cannot change input device while streaming. Stop streaming first.")
+                return False
+            
+            # Validate device ID using the appropriate method
+            if SOUNDDEVICE_AVAILABLE:
+                try:
+                    devices = sd.query_devices()
+                    if device_id < 0 or device_id >= len(devices):
+                        print(f"[ERROR] Invalid device ID: {device_id}")
+                        return False
+                    
+                    device = devices[device_id]
+                    if device['max_input_channels'] == 0:
+                        print(f"[ERROR] Device {device_id} ({device['name']}) does not support audio input")
+                        return False
+                    
+                    device_name = device['name']
+                except Exception as e:
+                    print(f"Error validating device with sounddevice: {e}")
+                    return False
+            else:
+                # Fallback to PyAudio validation
+                try:
+                    if device_id < 0 or device_id >= self.p.get_device_count():
+                        print(f"[ERROR] Invalid device ID: {device_id}")
+                        return False
+                    
+                    device_info = self.p.get_device_info_by_index(device_id)
+                    if device_info['maxInputChannels'] == 0:
+                        print(f"[ERROR] Device {device_id} ({device_info['name']}) does not support audio input")
+                        return False
+                    
+                    device_name = device_info['name']
+                except Exception as e:
+                    print(f"Error validating device with PyAudio: {e}")
+                    return False
+            
+            self._selected_input_device = device_id
+            print(f"[AUDIO] Input device set to ID {device_id}: {device_name}")
+            
+            return True
+            
+        except Exception as e:
+            print(f"Error setting input device: {e}")
+            return False
+    
+    def get_current_input_device(self):
+        """
+        Get information about the currently selected input device
+        
+        Returns:
+            dict: Device information or None if no device selected
+        """
+        if self._selected_input_device is None:
+            return None
+        
+        try:
+            if SOUNDDEVICE_AVAILABLE:
+                devices = sd.query_devices()
+                device = devices[self._selected_input_device]
+                return {
+                    'id': self._selected_input_device,
+                    'name': device['name'],
+                    'channels': device['max_input_channels'],
+                    'default_samplerate': device['default_samplerate']
+                }
+            else:
+                # Fallback to PyAudio
+                device_info = self.p.get_device_info_by_index(self._selected_input_device)
+                return {
+                    'id': self._selected_input_device,
+                    'name': device_info['name'],
+                    'channels': device_info['maxInputChannels'],
+                    'default_samplerate': device_info['defaultSampleRate']
+                }
+        except Exception as e:
+            print(f"Error getting current device info: {e}")
+            return None
     
     def debug_mode(self, enabled=True):
         """
@@ -1272,14 +1465,23 @@ class whisperpipe:
         
         # Open PyAudio stream
         try:
-            self.stream = self.p.open(
-                format=self.FORMAT,
-                channels=self.CHANNELS,
-                rate=self.RATE,
-                input=True,
-                frames_per_buffer=self.CHUNK,
-                stream_callback=self._audio_callback
-            )
+            stream_kwargs = {
+                'format': self.FORMAT,
+                'channels': self.CHANNELS,
+                'rate': self.RATE,
+                'input': True,
+                'frames_per_buffer': self.CHUNK,
+                'stream_callback': self._audio_callback
+            }
+            
+            # Add input device if one was selected
+            if self._selected_input_device is not None:
+                stream_kwargs['input_device_index'] = self._selected_input_device
+                device_info = self.get_current_input_device()
+                if device_info:
+                    print(f"[AUDIO] Using input device: {device_info['name']}")
+            
+            self.stream = self.p.open(**stream_kwargs)
         except Exception as e:
             print(f"Error opening audio stream: {e}")
             self.is_recording = False
@@ -1376,69 +1578,3 @@ class whisperpipe:
             pass  # Ignore errors in destructor
 
 
-def signal_handler(sig, frame):
-    """Handle interrupt signals"""
-    print("\nInterrupted by signal. Stopping...")
-    if 'transcriber' in globals():
-        transcriber.stop_streaming()
-        transcriber.close()
-    print("Transcription ended.")
-    sys.exit(0)
-
-
-def main():
-    # Register signal handlers for clean exit
-    signal.signal(signal.SIGINT, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
-    
-    # Model selection - you can change this to any Whisper model
-    MODEL_NAME = "base.en"  # Options: tiny, base, small, medium, large, tiny.en, base.en, small.en
-    
-    try:
-        # Initialize the transcriber with OpenAI Whisper
-        transcriber = WhisperStreamingTranscriberWithSpecials(model_name=MODEL_NAME)
-        # transcriber.debug_mode(False)
-    except Exception as e:
-        print(f"Failed to initialize transcriber: {e}")
-        sys.exit(1)
-    
-    def on_press(key):
-        try:
-            if key.char == 'q':
-                print("\nStopping transcription...")
-                return False
-        except AttributeError:
-            pass
-        except Exception as e:
-            print(f"Error in keyboard handling: {e}")
-    
-    try:
-        # Start the transcriber
-        if not transcriber.start_streaming():
-            print("Failed to start streaming")
-            transcriber.close()
-            sys.exit(1)
-        
-        # Set up keyboard listener
-        try:
-            with keyboard.Listener(on_press=on_press) as listener:
-                listener.join()
-        except Exception as e:
-            print(f"Error with keyboard listener: {e}")
-            
-    except KeyboardInterrupt:
-        print("\nStopped by user")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-    finally:
-        print("\nCleaning up resources...")
-        try:
-            transcriber.stop_streaming()
-            transcriber.close()
-        except Exception as e:
-            print(f"Error during cleanup: {e}")
-        print("Transcription ended.")
-
-
-if __name__ == "__main__":
-    main()
