@@ -9,8 +9,6 @@ This example shows two main usage scenarios:
 """
 
 import time
-import signal
-import sys
 
 # Import the transcriber class
 # Note: This will fail if Whisper dependencies aren't installed, which is expected
@@ -28,9 +26,6 @@ except Exception as e:
     TRANSCRIBER_AVAILABLE = False
     whisperpipe = None
 
-
-# Global variable to hold the transcriber instance for signal handling
-current_transcriber = None
 
 class LLMIntegrationExample:
     """Example class showing how to integrate with an LLM"""
@@ -97,8 +92,6 @@ def example_real_time_mode():
     # Create transcriber
     try:
         transcriber = whisperpipe(model_name="base.en")
-        global current_transcriber
-        current_transcriber = transcriber
         
         # Register the LLM callback
         # transcriber.set_def_callback(llm_integration.process_speech_text)
@@ -177,8 +170,6 @@ def example_llm_input_mode():
     # Create transcriber
     try:
         transcriber = whisperpipe(model_name="base.en")
-        global current_transcriber
-        current_transcriber = transcriber
         
         # Create pausing LLM integration
         pausing_llm = PausingLLMIntegration(transcriber)
@@ -231,8 +222,6 @@ def example_manual_control():
     
     try:
         transcriber = whisperpipe(model_name="base.en")
-        global current_transcriber
-        current_transcriber = transcriber
         transcriber.set_def_callback(simple_callback)
         
         print("🎤 Starting transcriber...")
@@ -295,37 +284,11 @@ def main():
         print("5. Start streaming: transcriber.start_streaming()")
         print("6. Use pause/resume as needed: transcriber.pause_streaming(), transcriber.resume_streaming()")
         print("7. Stop when done: transcriber.stop_streaming()")
+        print("8. Signal handling is now built-in (Ctrl+C works automatically)")
         
     except Exception as e:
         print(f"❌ Example failed: {e}")
 
 
 if __name__ == "__main__":
-    # Handle interruption gracefully
-    def signal_handler(sig, frame):
-        print("\n\nExamples interrupted by user")
-        
-        # Properly clean up the transcriber if it exists
-        global current_transcriber
-        if current_transcriber is not None:
-            try:
-                print("Stopping transcriber and showing session summary...")
-                current_transcriber.stop_streaming()
-                
-                # print("Transcribed Text:")
-                all_text = current_transcriber.get_all_transcribed_text()
-                # print(all_text)
-
-                # print("Completed Sentences Report:")
-                all_report = current_transcriber.get_completed_sentences()
-                # print(all_report)
-
-                current_transcriber.close()
-            except Exception as e:
-                print(f"Error during cleanup: {e}")
-        
-        sys.exit(0)
-    
-    signal.signal(signal.SIGINT, signal_handler)
-    
     main()
