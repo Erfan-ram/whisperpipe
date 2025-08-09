@@ -103,7 +103,7 @@ def test_code_structure():
     
     try:
         # Read the core.py file and check that main() and signal_handler functions were removed
-        with open('/home/runner/work/Audio2Text/Audio2Text/whisperpipe/core.py', 'r') as f:
+        with open('/home/erfan/Desktop/Rag-zone/Audio2Text/whisperpipe/core.py', 'r') as f:
             content = f.read()
         
         # Check that the old top-level functions are not present
@@ -156,7 +156,7 @@ def test_pyproject_changes():
     print("\n🧪 Testing pyproject.toml changes...")
     
     try:
-        with open('/home/runner/work/Audio2Text/Audio2Text/pyproject.toml', 'r') as f:
+        with open('pyproject.toml', 'r') as f:
             content = f.read()
         
         if 'sounddevice = "^0.4.6"' not in content:
