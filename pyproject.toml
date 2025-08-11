@@ -2,7 +2,9 @@
 name = "whisperpipe"
 version = "1.0.0"
 description = "Real-time speech-to-text streaming with OpenAI Whisper"
-authors = ["Erfan Ramezani <erfanramezany245@gmail.com>"]
+authors = [
+    {name = "Erfan Ramezani", email = "erfanramezany245@gmail.com"}
+]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/Erfan-ram/whisperpipe"
