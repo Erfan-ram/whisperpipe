@@ -13,7 +13,6 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -23,13 +22,11 @@ classifiers = [
 ]
 
 [tool.poetry.dependencies]
-python = "^3.8.1"
-openai-whisper = "^20231117"
-torch = "^2.0.0"
-pyaudio = "^0.2.11"
-numpy = "^1.21.0"
-pynput = "^1.7.6"
-sounddevice = "^0.4.6"
+python = ">=3.9,<3.13"
+openai-whisper= ">=20240930"
+pyaudio = "=>0.2.14"
+pynput = "=>1.7.7"
+sounddevice = "=>0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
