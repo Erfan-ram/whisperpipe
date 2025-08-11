@@ -7,23 +7,40 @@ license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/Erfan-ram/whisperpipe"
 repository = "https://github.com/Erfan-ram/whisperpipe"
-keywords = ["whisper", "speech-to-text", "real-time", "audio", "transcription", "streaming"]
+keywords = [
+  "whisper", "openai", "speech-to-text", "stt", "asr",
+  "automatic speech recognition", "real-time", "realtime",
+  "audio", "microphone", "transcription", "streaming", "live transcription"
+]
 classifiers = [
-    "Development Status :: 4 - Beta",
+    "Development Status :: 5 - Production/Stable",
+
+    "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Developers",
+
     "License :: OSI Approved :: MIT License",
+
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS :: MacOS X",
+
+    "Environment :: Console",
+
     "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules"
 ]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-openai-whisper= ">=20240930"
+openai-whisper = ">=20240930"
 pyaudio = "=>0.2.14"
 pynput = "=>1.7.7"
 sounddevice = "=>0.5.2"
@@ -40,3 +57,5 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Erfan-ram/whisperpipe/issues"
 "Documentation" = "https://github.com/Erfan-ram/whisperpipe/blob/main/README.md"
+"Source" = "https://github.com/Erfan-ram/whisperpipe"
+"Changelog" = "https://github.com/Erfan-ram/whisperpipe/releases"
