@@ -2,9 +2,7 @@
 name = "whisperpipe"
 version = "1.0.0"
 description = "Real-time speech-to-text streaming with OpenAI Whisper"
-authors = [
-    {name = "Erfan Ramezani", email = "erfanramezany245@gmail.com"}
-]
+authors = ["Erfan Ramezani <erfanramezany245@gmail.com>"]
 license = "MIT"
 readme = "README.md"
 homepage = "https://github.com/Erfan-ram/whisperpipe"
@@ -43,9 +41,9 @@ classifiers = [
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
 openai-whisper = ">=20240930"
-pyaudio = "=>0.2.14"
-pynput = "=>1.7.7"
-sounddevice = "=>0.5.2"
+pyaudio = ">=0.2.14"
+pynput = ">=1.7.7"
+sounddevice = ">=0.5.2"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.0"
