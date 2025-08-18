@@ -59,3 +59,13 @@ build-backend = "poetry.core.masonry.api"
 "Documentation" = "https://github.com/Erfan-ram/whisperpipe/blob/main/README.md"
 "Source" = "https://github.com/Erfan-ram/whisperpipe"
 "Changelog" = "https://github.com/Erfan-ram/whisperpipe/releases"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning"
+]
