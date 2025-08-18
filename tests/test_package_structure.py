@@ -45,7 +45,7 @@ def test_pyproject_toml_content():
     
     required_content = [
         'name = "whisperpipe"',
-        '[tool.poetry]',
+        '[project]',
         'openai-whisper',
         'sounddevice',
         'pynput'
@@ -79,7 +79,7 @@ def test_package_metadata():
     
     metadata_checks = [
         ('authors = [', 'Author information'),
-        ('license = "MIT"', 'License'),
+        ('license = {text = "MIT"}', 'License'),
         ('description = ', 'Description'),
         ('readme = "README.md"', 'README reference'),
     ]
