@@ -6,8 +6,8 @@ import threading
 import time
 
 
-class MockWhisperpipe:
-    """Mock whisperpipe class for testing functionality without dependencies"""
+class MockPipeStream:
+    """Mock pipeStream class for testing functionality without dependencies"""
     
     def __init__(self, model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0):
         self.model_name = model_name
@@ -96,7 +96,7 @@ class MockWhisperpipe:
 
 def test_callback_functionality():
     """Test callback registration and usage"""
-    transcriber = MockWhisperpipe()
+    transcriber = MockPipeStream()
     
     # Test setting a valid callback
     def test_callback(text):
@@ -116,7 +116,7 @@ def test_callback_functionality():
 
 def test_pause_resume_functionality():
     """Test pause and resume functionality"""
-    transcriber = MockWhisperpipe()
+    transcriber = MockPipeStream()
     
     # Test pause when not running
     assert not transcriber.pause_streaming()
@@ -143,7 +143,7 @@ def test_pause_resume_functionality():
 
 def test_device_management():
     """Test audio device management functionality"""
-    transcriber = MockWhisperpipe()
+    transcriber = MockPipeStream()
     
     # Test listing devices
     devices = transcriber.input_devices()
@@ -163,7 +163,7 @@ def test_device_management():
 
 def test_constructor_parameters():
     """Test that constructor parameters are properly stored"""
-    transcriber = MockWhisperpipe(
+    transcriber = MockPipeStream(
         model_name="tiny.en",
         language="fr", 
         finalization_delay=5.0,
@@ -178,7 +178,7 @@ def test_constructor_parameters():
 
 def test_thread_safety():
     """Test that pause/resume operations are thread-safe"""
-    transcriber = MockWhisperpipe()
+    transcriber = MockPipeStream()
     transcriber.start_streaming()
     
     results = []
@@ -207,7 +207,7 @@ def test_thread_safety():
 
 def test_callback_with_llm_simulation():
     """Test callback functionality with simulated LLM processing"""
-    transcriber = MockWhisperpipe()
+    transcriber = MockPipeStream()
     
     processed_texts = []
     

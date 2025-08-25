@@ -30,10 +30,10 @@ def test_package_import():
 
 
 def test_main_class_accessible():
-    """Test that the main whisperpipe class is accessible"""
+    """Test that the main pipeStream class is accessible"""
     try:
         import whisperpipe
-        assert hasattr(whisperpipe, 'whisperpipe'), "Main class 'whisperpipe' not accessible"
+        assert hasattr(whisperpipe, 'pipeStream'), "Main class 'pipeStream' not accessible"
     except ImportError:
         pytest.skip("Package import failed (may be expected in test environment)")
 
