@@ -6,7 +6,7 @@ and audio device management.
 This example shows how easy it is to use whisperpipe without manual signal handling.
 """
 
-from whisperpipe import whisperpipe
+from whisperpipe import pipeStream
 
 def main():
     """
@@ -17,7 +17,7 @@ def main():
     print("=" * 50)
     
     # Create transcriber with the requested API
-    transcriber = whisperpipe(
+    transcriber = pipeStream(
         model_name="base.en",
         language="en",
         finalization_delay=10.0,

@@ -29,7 +29,7 @@ except (ImportError, OSError) as e:
     print(f"[WARNING] sounddevice not available: {e}")
     print("[INFO] Audio device management will use PyAudio fallback")
 
-class whisperpipe:
+class pipeStream:
     def __init__(self, model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
         """
         Initialize the transcriber with OpenAI Whisper model

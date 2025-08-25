@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Example usage script demonstrating the new callback and pause/resume functionality
-of the whisperpipe class.
+of the pipeStream class.
 
 This example shows two main usage scenarios:
 1. Real-time streaming with custom LLM integration
@@ -13,18 +13,18 @@ import time
 # Import the transcriber class
 # Note: This will fail if Whisper dependencies aren't installed, which is expected
 try:
-    from whisperpipe import whisperpipe
+    from whisperpipe import pipeStream
     TRANSCRIBER_AVAILABLE = True
 except ImportError as e:
     print(f"⚠️  Transcriber dependencies not available: {e}")
     print("This is expected in test environments. API examples will still be shown.\n")
     TRANSCRIBER_AVAILABLE = False
-    whisperpipe = None
+    pipeStream = None
 except Exception as e:
     print(f"⚠️  Could not load transcriber: {e}")
     print("This is expected in test environments. API examples will still be shown.\n")
     TRANSCRIBER_AVAILABLE = False
-    whisperpipe = None
+    pipeStream = None
 
 
 class LLMIntegrationExample:
@@ -91,7 +91,7 @@ def example_real_time_mode():
     
     # Create transcriber
     try:
-        transcriber = whisperpipe(model_name="base.en")
+        transcriber = pipeStream(model_name="base.en")
         
         # Register the LLM callback
         # transcriber.set_def_callback(llm_integration.process_speech_text)
@@ -169,7 +169,7 @@ def example_llm_input_mode():
     
     # Create transcriber
     try:
-        transcriber = whisperpipe(model_name="base.en")
+        transcriber = pipeStream(model_name="base.en")
         
         # Create pausing LLM integration
         pausing_llm = PausingLLMIntegration(transcriber)
@@ -221,7 +221,7 @@ def example_manual_control():
         print(f"📝 [CAPTURED] {text}")
     
     try:
-        transcriber = whisperpipe(model_name="base.en")
+        transcriber = pipeStream(model_name="base.en")
         transcriber.set_def_callback(simple_callback)
         
         print("🎤 Starting transcriber...")
@@ -278,8 +278,8 @@ def main():
         print("✅ API structure demonstrated successfully")
         print("\n🔧 To use in your project:")
         print("1. Install dependencies: pip install openai-whisper torch pyaudio numpy pynput")
-        print("2. Import: from whisperpipe import whisperpipe")
-        print("3. Create instance: transcriber = whisperpipe()")
+        print("2. Import: from whisperpipe import pipeStream")
+        print("3. Create instance: transcriber = pipeStream()")
         print("4. Register callback: transcriber.set_def_callback(your_function)")
         print("5. Start streaming: transcriber.start_streaming()")
         print("6. Use pause/resume as needed: transcriber.pause_streaming(), transcriber.resume_streaming()")

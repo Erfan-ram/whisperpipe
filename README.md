@@ -33,10 +33,10 @@ pip install git+https://github.com/Erfan-ram/whisperpipe.git
 ## Quick Start
 
 ```python
-from whisperpipe import whisperpipe
+from whisperpipe import pipeStream
 
 # Basic usage
-transcriber = whisperpipe(
+transcriber = pipeStream(
     model_name="base.en",
     language="en",
     finalization_delay=10.0,
@@ -52,10 +52,10 @@ transcriber.start_streaming()
 ### Basic Transcription
 
 ```python
-from whisperpipe import whisperpipe
+from whisperpipe import pipeStream
 
 # Create transcriber instance
-transcriber = whisperpipe(
+transcriber = pipeStream(
     model_name="base.en",
     language="en",
     finalization_delay=10.0,
@@ -72,7 +72,7 @@ transcriber.start_streaming()
 ### With Custom Callback (LLM Integration)
 
 ```python
-from whisperpipe import whisperpipe
+from whisperpipe import pipeStream
 
 def llm_processor(text):
     """Custom function to process transcribed text"""
@@ -84,7 +84,7 @@ def llm_processor(text):
     return response
 
 # Create transcriber with callback
-transcriber = whisperpipe(
+transcriber = pipeStream(
     model_name="base.en",
     language="en",
     finalization_delay=10.0,
@@ -101,7 +101,7 @@ transcriber.start_streaming()
 ### Interactive Mode with Pause/Resume
 
 ```python
-from whisperpipe import whisperpipe
+from whisperpipe import pipeStream
 import time
 
 def interactive_processor(text):
@@ -120,7 +120,7 @@ def interactive_processor(text):
     # Resume for next input
     transcriber.resume_streaming()
 
-transcriber = whisperpipe()
+transcriber = pipeStream()
 transcriber.set_def_callback(interactive_processor)
 transcriber.start_streaming()
 ```
