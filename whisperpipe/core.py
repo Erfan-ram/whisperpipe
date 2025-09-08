@@ -868,16 +868,15 @@ class pipeStream:
         
         # Pattern 1: Direct foreign language indicators
         foreign_language_patterns = [
+            r'\(.*speaking.*in.*\)',         # Catches any "speaking in [anything]" pattern
             r'\(.*speaking in.*language.*\)',
-            r'\(.*foreign language.*\)',
-            r'\(.*speaks in.*\)',
-            r'\(.*indistinct.*speaks in.*\)',
-            r'\(.*speaking.*french.*\)',
-            r'\(.*speaking.*spanish.*\)',
-            r'\(.*speaking.*german.*\)',
-            r'\(.*non-english.*\)',
-            r'\[.*foreign.*language.*\]',
-            r'\[.*non-english.*\]'
+            r'\(.*speaks.*in.*\)',           # Catches any "speaks in [anything]" pattern  
+            r'\(.*foreign.*language.*\)',    # Foreign language indicators
+            r'\(.*non-english.*\)',          # Non-English indicators
+            # r'\[.*speaking.*in.*\]',         # Same patterns in square brackets
+            # r'\[.*speaks.*in.*\]',
+            # r'\[.*foreign.*language.*\]',
+            # r'\[.*non-english.*\]',
         ]
         
         for pattern in foreign_language_patterns:
