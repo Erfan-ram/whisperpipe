@@ -1340,6 +1340,9 @@ class pipeStream:
                     self.empty_transcribe_rejection_count = 0
                     self._reset_sentence_state("Maximum empty transcriptions reached")
                 return
+            
+            # #TODO: maybe we need a better adapdatable advance forein language detector precydure
+            # based on procces some segemnts to detern language
 
             print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
             
