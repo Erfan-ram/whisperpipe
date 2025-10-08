@@ -30,12 +30,12 @@ except (ImportError, OSError) as e:
     print("[INFO] Audio device management will use PyAudio fallback")
 
 class pipeStream:
-    def __init__(self, model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
+    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
         """
         Initialize the transcriber with OpenAI Whisper model
         
         Args:
-            model_name: Whisper model name (tiny, base, small, medium, large, base.en, small.en)
+            model_name: Whisper model name (tiny, base, small, medium, large, base, small.en)
             language: Language code for transcription (e.g., "en", "es", "fr")
             finalization_delay: Wait time in seconds before finalizing transcription (default 10.0)
             processing_interval: Interval in seconds between processing cycles (default 1.0)
@@ -89,6 +89,7 @@ class pipeStream:
         self.max_sentence_duration = 120.0  # Max sentence duration
         self.max_active_buffer_duration = 25.0  # Max active buffer duration
         self.min_sentence_duration = 1.5   # Minimum duration before allowing segmentation
+        self.last_language = None  # Track last detected language
         
         # Simplified Timer Logic - Only stable buffer based
         self.last_transcription = ""           # Always keep the LAST transcription only
@@ -1197,11 +1198,11 @@ class pipeStream:
                 # Check if we should finalize after delay period (simplified logic)
                 if self._should_finalize_after_delay():
                     
-                    # ---------------- new logic ----------------
-                    # Process only first 1/2 of buffer since user likely didn't speak at the end
-                    self._debug_print(f" Just proccessing first 1/3 of active audio buffer in last transcription")
+                    # ---------------- new logic + skip if we have detected another language----------------
+                    # Process only first 1/3 of buffer since user likely didn't speak at the end
                     one_third_buffer = self.active_audio_buffer[:len(self.active_audio_buffer)//3]
-                    if len(one_third_buffer) > int(self.RATE * 0.3):  # Ensure minimum size
+                    if len(one_third_buffer) > int(self.RATE * 0.3) and self.last_language == self.language:  # Ensure minimum size
+                        self._debug_print(f" Just proccessing first 1/3 of active audio buffer in last transcription")
                         self._process_sentence_segment(one_third_buffer)
                     # ---------------- new logic ----------------
                     self._finalize_sentence()
@@ -1300,7 +1301,52 @@ class pipeStream:
         if len(audio_buffer) < min_segment_size:
             return
         
+        # ------------------------------------- should be tested more -------------------------------------
         try:
+            # #TODO: maybe we need a better adapdatable advance forein language detector precydure
+            # based on procces some segemnts to detern language
+            # Detect language using Whisper's built-in language detection (if model supports it)
+            if len(audio_buffer) > int(self.RATE * 1.0):  # Only if we have at least 1 second of audio
+                try:
+                    # Prepare audio for language detection using Whisper's preprocessing
+                    audio_padded = whisper.pad_or_trim(audio_buffer)
+                    
+                    # Make log-Mel spectrogram and move to the same device as the model
+                    mel = whisper.log_mel_spectrogram(audio_padded, n_mels=self.model.dims.n_mels).to(self.model.device)
+                    
+                    # Detect the spoken language
+                    _, probs = self.model.detect_language(mel)
+                    detected_language = max(probs, key=probs.get)
+                    # if detected_language == "nn":
+                    #     print(f"[LANGUAGE DETECTION] Detected Norwegian Nynorsk (nn), skipping segment")
+                    #     return  # Skip if detected as Norwegian Nynorsk (common false positive) == means speaker is not speaking
+                    self._debug_print(f"[LANGUAGE DETECTION] Detected language: {detected_language} (confidence: {probs[detected_language]:.3f})")
+                    self.last_language = detected_language
+
+                    # If detected language doesn't match expected language, handle accordingly
+                    if detected_language != self.language or detected_language == "nn":
+                        self._debug_print(f"[LANGUAGE MISMATCH] Expected: {self.language}, Detected: {detected_language}")
+                        
+                        # Increment rejection counter for language mismatch
+                        self.foreign_language_rejection_count += 1
+                        self.last_rejection_time = time.time()
+                        
+                        self._debug_print(f"[LANGUAGE REJECTION COUNT] {self.foreign_language_rejection_count}/{self.max_foreign_rejections}")
+                    
+                        # If we've had too many language mismatches, reset
+                        if self.foreign_language_rejection_count >= self.max_foreign_rejections:
+                            self._reset_sentence_state("Maximum foreign language detections reached or detected silence (nn)")
+                    
+                        return  # Don't process this transcription further
+                    
+                    # return  # Don't process this transcription further
+                except Exception as e:
+                    # Handle models that don't support language detection (e.g., English-only models)
+                    self._debug_print(f"[LANGUAGE DETECTION] Model doesn't support language detection: {e}")
+                    self._debug_print(f"[LANGUAGE DETECTION] Skipping language validation for this model")
+                    
+            # ------------------------------------- should be tested more --------------------------------------------------------------
+                    
             # Transcribe using OpenAI Whisper with word-level timestamps
             result = self.model.transcribe(
                 audio_buffer, 
@@ -1341,9 +1387,7 @@ class pipeStream:
                     self._reset_sentence_state("Maximum empty transcriptions reached")
                 return
             
-            # #TODO: maybe we need a better adapdatable advance forein language detector precydure
-            # based on procces some segemnts to detern language
-
+            
             print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
             
             # Extract word-level timestamps
@@ -1531,8 +1575,9 @@ class pipeStream:
         # Process any remaining audio in active buffer
         if len(self.active_audio_buffer) > 0:
             try:
-                self._debug_print("\n[PROCESSING FINAL SEGMENT]")
-                self._process_sentence_segment(self.active_audio_buffer)
+                if self.last_language == self.language:
+                    self._process_sentence_segment(self.active_audio_buffer)
+                self._debug_print("\n[PROCESSING FINAL SEGMENT on stopping]")
             except Exception as e:
                 self._debug_print(f"Error processing final segment: {e}")
         

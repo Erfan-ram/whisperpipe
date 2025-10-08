@@ -18,7 +18,7 @@ def main():
     
     # Create transcriber with the requested API
     transcriber = pipeStream(
-        model_name="base.en",
+        model_name="base",
         language="en",
         finalization_delay=10.0,
         processing_interval=1.0

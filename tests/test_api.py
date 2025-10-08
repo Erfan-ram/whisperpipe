@@ -61,7 +61,7 @@ def test_api_compatibility():
             assert param in sig.parameters, f"API incompatible: missing {param}"
             
         # Verify the signature is compatible with:
-        # pipeStream(model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0)
+        # pipeStream(model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0)
         
     except ImportError:
         pytest.skip("Import failed (may be expected in test environment)")

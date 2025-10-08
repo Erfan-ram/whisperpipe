@@ -91,7 +91,12 @@ def example_real_time_mode():
     
     # Create transcriber
     try:
-        transcriber = pipeStream(model_name="base.en")
+        transcriber = pipeStream(
+            model_name="base",
+            language="en",
+            finalization_delay=10.0,
+            processing_interval=1.0
+        )
         
         # Register the LLM callback
         # transcriber.set_def_callback(llm_integration.process_speech_text)
@@ -169,7 +174,12 @@ def example_llm_input_mode():
     
     # Create transcriber
     try:
-        transcriber = pipeStream(model_name="base.en")
+        transcriber = pipeStream(
+            model_name="base",
+            language="en",
+            finalization_delay=10.0,
+            processing_interval=1.0
+        )
         
         # Create pausing LLM integration
         pausing_llm = PausingLLMIntegration(transcriber)
@@ -221,7 +231,12 @@ def example_manual_control():
         print(f"📝 [CAPTURED] {text}")
     
     try:
-        transcriber = pipeStream(model_name="base.en")
+        transcriber = pipeStream(
+            model_name="base",
+            language="en",
+            finalization_delay=10.0,
+            processing_interval=1.0
+        )
         transcriber.set_def_callback(simple_callback)
         
         print("🎤 Starting transcriber...")
@@ -271,8 +286,8 @@ def main():
     # Show API usage examples without actually running (since we may not have deps)
     try:
         # This would work with full dependencies:
-        example_real_time_mode()
-        # example_llm_input_mode()
+        # example_real_time_mode()
+        example_llm_input_mode()
         # example_manual_control()
         
         print("✅ API structure demonstrated successfully")

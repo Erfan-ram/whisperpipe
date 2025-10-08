@@ -9,7 +9,7 @@ import time
 class MockPipeStream:
     """Mock pipeStream class for testing functionality without dependencies"""
     
-    def __init__(self, model_name="base.en", language="en", finalization_delay=10.0, processing_interval=1.0):
+    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0):
         self.model_name = model_name
         self.language = language
         self.finalization_delay = finalization_delay

@@ -37,7 +37,7 @@ from whisperpipe import pipeStream
 
 # Basic usage
 transcriber = pipeStream(
-    model_name="base.en",
+    model_name="base",
     language="en",
     finalization_delay=10.0,
     processing_interval=1.0
@@ -56,7 +56,7 @@ from whisperpipe import pipeStream
 
 # Create transcriber instance
 transcriber = pipeStream(
-    model_name="base.en",
+    model_name="base",
     language="en",
     finalization_delay=10.0,
     processing_interval=1.0
@@ -85,7 +85,7 @@ def llm_processor(text):
 
 # Create transcriber with callback
 transcriber = pipeStream(
-    model_name="base.en",
+    model_name="base",
     language="en",
     finalization_delay=10.0,
     processing_interval=1.0
@@ -129,7 +129,7 @@ transcriber.start_streaming()
 
 ### Constructor Parameters
 
-- `model_name` (str): Whisper model name ("tiny", "base", "small", "medium", "large", "base.en", "small.en"). Default: "base.en"
+- `model_name` (str): Whisper model name ("tiny", "base", "small", "medium", "large", "base", "small.en"). Default: "base"
 - `language` (str): Language code for transcription ("en", "es", "fr", etc.). Default: "en"
 - `finalization_delay` (float): Wait time in seconds before finalizing transcription. Default: 10.0
 - `processing_interval` (float): Interval in seconds between processing cycles. Default: 1.0
