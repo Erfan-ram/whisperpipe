@@ -1437,7 +1437,7 @@ class pipeStream:
             # Log transcription with metadata
             if self.logger:
                 self.logger.log_transcription(new_text, is_stable=False, metadata={
-                    'processing_time': processing_time if hasattr(self, 'processing_time') else None,
+                    'processing_time': processing_time,
                     'buffer_duration': len(audio_buffer) / self.RATE,
                     'language': self.last_language
                 })

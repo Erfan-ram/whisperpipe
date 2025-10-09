@@ -56,7 +56,7 @@ class CompleteBenchmark:
         print("-"*80)
         print("🎤 Say the phrase above when recording starts...")
         print("Ready to record in 3 seconds...")
-        time.sleep(3)
+        # time.sleep(3)  # SKIPPED: Timer disabled for testing
         
         wp_result = self._test_whisperpipe(duration)
         test_result['whisperpipe'] = wp_result
@@ -67,7 +67,7 @@ class CompleteBenchmark:
         # Wait between tests
         print("\n⏸️  30-second break before Naive test...")
         print("   (Take a breath, prepare to repeat the SAME phrase)")
-        self._countdown(30)
+        # self._countdown(30)  # SKIPPED: Timer disabled for testing
         
         # Test 2: Naive Baseline
         print("\n" + "-"*80)
@@ -76,7 +76,7 @@ class CompleteBenchmark:
         print("🎤 Please repeat the EXACT SAME phrase!")
         print(f"   Phrase: '{reference_text}'")
         print("Ready to record in 3 seconds...")
-        time.sleep(3)
+        # time.sleep(3)  # SKIPPED: Timer disabled for testing
         
         naive_result = self._test_naive(duration)
         test_result['naive'] = naive_result
@@ -100,15 +100,17 @@ class CompleteBenchmark:
         return test_result
     
     def _countdown(self, seconds):
-        """Countdown timer with visual feedback"""
-        for remaining in range(seconds, 0, -5):
-            if remaining <= 5:
-                print(f"   {remaining}...", end=' ', flush=True)
-                time.sleep(1)
-            else:
-                print(f"   {remaining}s remaining...", end='\r', flush=True)
-                time.sleep(5)
-        print("\n")
+        """Countdown timer with visual feedback - SKIPPED for testing"""
+        # All timers disabled for testing
+        print(f"   Timer skipped (would have been {seconds}s)")
+        # for remaining in range(seconds, 0, -5):
+        #     if remaining <= 5:
+        #         print(f"   {remaining}...", end=' ', flush=True)
+        #         time.sleep(1)
+        #     else:
+        #         print(f"   {remaining}s remaining...", end='\r', flush=True)
+        #         time.sleep(5)
+        # print("\n")
     
     def _test_whisperpipe(self, duration):
         """Test WhisperPipe system with proper logging"""
@@ -126,7 +128,7 @@ class CompleteBenchmark:
         
         # Show progress
         for i in range(duration):
-            time.sleep(1)
+            time.sleep(1)  # Keep this timer - needed to actually record audio
             print(f"\r   Recording: {i+1}/{duration}s", end='', flush=True)
         print()  # New line
         
@@ -184,7 +186,7 @@ class CompleteBenchmark:
         
         # Show progress
         for i in range(duration):
-            time.sleep(1)
+            time.sleep(1)  # Keep this timer - needed to actually record audio
             print(f"\r   Recording: {i+1}/{duration}s", end='', flush=True)
         print()  # New line
         
@@ -628,7 +630,7 @@ def main():
             print(f"\n{'='*80}")
             print(f" BREAK: Test {i} complete. Next test in 2 minutes...")
             print(f"{'='*80}")
-            benchmark._countdown(120)
+            # benchmark._countdown(120)  # SKIPPED: Timer disabled for testing
     
     # Print final report
     print("\n\n" + "🎉"*40)
