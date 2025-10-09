@@ -432,10 +432,30 @@ class CompleteBenchmark:
         print(f"\n{'='*80}")
         print(" IMPROVEMENTS (WhisperPipe vs Naive Baseline)")
         print(f"{'='*80}")
-        print(f"✅ Edit Overhead Reduction:          {imp['edit_overhead_reduction_percent']:.1f}%")
-        print(f"✅ Stability Improvement:            +{imp['stability_improvement_points']:.1f} percentage points")
-        print(f"✅ Processing Time Reduction:        {imp['processing_time_reduction_percent']:.1f}%")
-        print(f"✅ Computational Overhead Reduction: {imp['overhead_reduction_percent']:.1f}%")
+        
+        # Edit Overhead Reduction (higher is better - positive means WP is better)
+        if imp['edit_overhead_reduction_percent'] > 0:
+            print(f"✅ Edit Overhead Reduction:          {imp['edit_overhead_reduction_percent']:.1f}%")
+        else:
+            print(f"⚠️  Edit Overhead Increase:           {abs(imp['edit_overhead_reduction_percent']):.1f}%")
+        
+        # Stability Improvement (higher is better - positive means WP is better)
+        if imp['stability_improvement_points'] > 0:
+            print(f"✅ Stability Improvement:            +{imp['stability_improvement_points']:.1f} percentage points")
+        else:
+            print(f"⚠️  Stability Degradation:            {imp['stability_improvement_points']:.1f} percentage points")
+        
+        # Processing Time Reduction (positive means WP is better/faster)
+        if imp['processing_time_reduction_percent'] > 0:
+            print(f"✅ Processing Time Reduction:        {imp['processing_time_reduction_percent']:.1f}%")
+        else:
+            print(f"⚠️  Processing Time Increase:         {abs(imp['processing_time_reduction_percent']):.1f}%")
+        
+        # Computational Overhead Reduction (positive means WP is better)
+        if imp['overhead_reduction_percent'] > 0:
+            print(f"✅ Computational Overhead Reduction: {imp['overhead_reduction_percent']:.1f}%")
+        else:
+            print(f"⚠️  Computational Overhead Increase:  {abs(imp['overhead_reduction_percent']):.1f}%")
         
         # Generate paper text
         print(f"\n{'='*80}")
@@ -455,6 +475,11 @@ class CompleteBenchmark:
         stability_gain = imp['stability_improvement_points']
         overhead_reduction = imp['overhead_reduction_percent']
         commit_latency = wp['commit_latency_ms']
+        
+        # Handle negative improvements
+        edit_text = f"{abs(edit_reduction):.0f}% reduction" if edit_reduction > 0 else f"{abs(edit_reduction):.0f}% increase"
+        stability_text = f"a {abs(stability_gain):.0f} percentage point improvement" if stability_gain > 0 else f"a {abs(stability_gain):.0f} percentage point degradation"
+        overhead_text = f"achieving {abs(overhead_reduction):.0f}% reduction" if overhead_reduction > 0 else f"showing {abs(overhead_reduction):.0f}% increase"
         
         abstract = f"""
 Large-scale self-supervised models such as Whisper have demonstrated 
@@ -478,11 +503,11 @@ transcription artifacts using Whisper's language identification capabilities.
 We evaluate our system through comparative experiments against naive streaming 
 baselines that re-transcribe entire audio buffers at each processing cycle. 
 Comprehensive experiments demonstrate that WhisperPipe achieves {wp['edit_overhead']:.2f}× 
-edit overhead (representing a {edit_reduction:.0f}% reduction compared to {naive['edit_overhead']:.2f}× 
+edit overhead (representing {edit_text} compared to {naive['edit_overhead']:.2f}× 
 for naive re-transcription), {wp['stability_score']:.0f}% transcription consistency 
-(a {stability_gain:.0f} percentage point improvement over {naive['stability_score']:.0f}% 
+({stability_text} over {naive['stability_score']:.0f}% 
 baseline stability), and {wp['processing_overhead']:.2f}× computational overhead 
-(achieving {overhead_reduction:.0f}% reduction versus {naive['processing_overhead']:.2f}× 
+({overhead_text} versus {naive['processing_overhead']:.2f}× 
 naive baseline){"" if commit_latency == 0 else f", with {commit_latency:.0f}ms mean commit latency"}. 
 
 The dual-buffer architecture prevents linear growth in processing time, maintaining 
