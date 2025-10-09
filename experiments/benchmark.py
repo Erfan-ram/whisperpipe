@@ -557,11 +557,11 @@ def main():
     # Ask user how many tests to run
     while True:
         try:
-            num_tests_input = input("\nHow many tests do you want to run? (1-10, default=3): ").strip()
+            num_tests_input = input("\nHow many tests do you want to run? (1-15, default=3): ").strip()
             num_tests = int(num_tests_input) if num_tests_input else 3
-            if 1 <= num_tests <= 10:
+            if 1 <= num_tests <= 15:
                 break
-            print("❌ Please enter a number between 1 and 10")
+            print("❌ Please enter a number between 1 and 15")
         except ValueError:
             print("❌ Please enter a valid number")
     
@@ -618,6 +618,31 @@ def main():
             'name': 'Test 10: Mixed Content',
             'reference': 'the average processing time is approximately zero point eight seconds',
             'duration': 12
+        },
+        {
+            'name': 'Test 11: Long Context (20s)',
+            'reference': 'speech recognition technology has advanced significantly over the past decade with deep learning models achieving human level performance on many benchmarks',
+            'duration': 20
+        },
+        {
+            'name': 'Test 12: Long Technical Explanation (25s)',
+            'reference': 'the dual buffer architecture separates finalized text from active processing audio which eliminates redundant reprocessing of stable content and maintains near constant computational cost per processing cycle',
+            'duration': 25
+        },
+        {
+            'name': 'Test 13: Long Narrative (30s)',
+            'reference': 'automatic speech recognition systems convert spoken language into written text by analyzing audio signals and applying acoustic models language models and pronunciation dictionaries to generate the most likely word sequence',
+            'duration': 30
+        },
+        {
+            'name': 'Test 14: Long Conversational (20s)',
+            'reference': 'today we will discuss the latest developments in machine learning specifically focusing on transformer architectures and their applications in natural language processing',
+            'duration': 20
+        },
+        {
+            'name': 'Test 15: Long Instructions (25s)',
+            'reference': 'to configure the system first install all dependencies then set up the environment variables and finally run the initialization script to create the necessary database tables and indexes',
+            'duration': 25
         }
     ]
     

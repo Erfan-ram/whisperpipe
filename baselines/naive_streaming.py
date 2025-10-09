@@ -117,10 +117,13 @@ class NaiveStreamingWhisper:
                         process_start = time.time()
                         
                         # KEY DIFFERENCE: Re-transcribe ENTIRE buffer every time
+                        # Use same parameters as WhisperPipe for fair comparison
                         result = self.model.transcribe(
                             audio_copy,  # ← Fresh copy, cache-busting
                             fp16=False,
                             language=self.language,
+                            word_timestamps=True,  # Enable word-level timestamps (same as WhisperPipe)
+                            suppress_tokens=None,  # Don't suppress any tokens (same as WhisperPipe)
                             verbose=False  # Suppress output
                         )
                         
@@ -227,10 +230,13 @@ class NaiveStreamingWhisper:
             
             process_start = time.time()
             
+            # Use same parameters as WhisperPipe for fair comparison
             result = self.model.transcribe(
                 audio_copy,
                 fp16=False,
                 language=self.language,
+                word_timestamps=True,  # Enable word-level timestamps (same as WhisperPipe)
+                suppress_tokens=None,  # Don't suppress any tokens (same as WhisperPipe)
                 verbose=False
             )
             
