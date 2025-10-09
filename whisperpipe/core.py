@@ -1417,19 +1417,14 @@ class pipeStream:
             new_text = result["text"].strip()
             # self._debug_print(f"\n[TRANSCRIPTION pure RESULT] -{new_text}-")
             
+            # Now log with new_text available
             if self.logger:
                 process_end = time.time()
                 processing_time = process_end - process_start
                 self.total_processing_time += processing_time
                 self.processing_times.append(processing_time)
-                
-                # Update metadata logging
-                self.logger.log_transcription(new_text, is_stable=False, metadata={
-                    'processing_time': processing_time,
-                    'buffer_duration': len(self.active_audio_buffer) / self.RATE,
-                    'language': self.last_language
-                })
-                
+            
+            # Check for empty transcription
             if not new_text:
                 # only empty transcription found mode
                 self.empty_transcribe_rejection_count += 1
@@ -1439,13 +1434,17 @@ class pipeStream:
                     self._reset_sentence_state("Maximum empty transcriptions reached")
                 return
             
-            
-            print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
+            # Log transcription with metadata
             if self.logger:
                 self.logger.log_transcription(new_text, is_stable=False, metadata={
-                    'similarity': None,  # Can add similarity score if available
+                    'processing_time': processing_time if hasattr(self, 'processing_time') else None,
+                    'buffer_duration': len(audio_buffer) / self.RATE,
                     'language': self.last_language
                 })
+            
+            # Print transcription
+            print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
+            
             
             # Extract word-level timestamps
             word_timestamps = self._extract_word_timestamps(result)
