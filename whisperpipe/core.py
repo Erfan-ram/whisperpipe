@@ -19,6 +19,12 @@ import re
 from pynput import keyboard
 import whisper
 import torch
+try:
+    from evaluation.logger import TranscriptionLogger
+    LOGGER_AVAILABLE = True
+except ImportError:
+    LOGGER_AVAILABLE = False
+    TranscriptionLogger = None
 
 # Try to import sounddevice, but handle gracefully if not available
 try:
@@ -30,7 +36,9 @@ except (ImportError, OSError) as e:
     print("[INFO] Audio device management will use PyAudio fallback")
 
 class pipeStream:
-    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
+    def __init__(self, model_name="base", language="en", finalization_delay=10.0, 
+             processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True,
+             enable_evaluation=False):  # ← ADD THIS PARAMETER
         """
         Initialize the transcriber with OpenAI Whisper model
         
@@ -41,9 +49,18 @@ class pipeStream:
             processing_interval: Interval in seconds between processing cycles (default 1.0)
             buffer_duration_seconds: Time window in seconds to hold audio for processing (default 5.0)
             debug_mode: Enable debug mode for detailed logging (default True)
+            enable_evaluation: Enable logging for evaluation (default False)
         """
         self._debug_mode_enabled = debug_mode
-        self.language = language  # Store language for Whisper transcription
+        self.language = language
+        
+        # ADD THIS: Initialize logger if evaluation mode enabled
+        if enable_evaluation and LOGGER_AVAILABLE:
+            self.logger = TranscriptionLogger()
+            self.logger.start_session()
+            print("[EVALUATION] Logging enabled for evaluation")
+        else:
+            self.logger = None
         print(f"Loading Whisper model: {model_name}")
         
         try:
@@ -735,8 +752,18 @@ class pipeStream:
         # Add to stable text buffer
         if self.stable_text_buffer:
             self.stable_text_buffer += " " + stable_text
+            if self.logger:
+                self.logger.log_stable_commit(stable_text, end_time, metadata={
+                    'stable_buffer_length': len(self.stable_text_buffer),
+                    'active_buffer_duration': len(self.active_audio_buffer) / self.RATE
+                })
         else:
             self.stable_text_buffer = stable_text
+            if self.logger:
+                self.logger.log_stable_commit(stable_text, end_time, metadata={
+                    'stable_buffer_length': len(self.stable_text_buffer),
+                    'active_buffer_duration': len(self.active_audio_buffer) / self.RATE
+                })
             
         # Show time before reset
         time_now = time.time()
@@ -1164,6 +1191,8 @@ class pipeStream:
                 self.completed_sentences.append(sentence_data)
                 
                 print(f"\n[SENTENCE COMPLETE] {sentence_data['text']}")
+                if self.logger and sentence_data:
+                    self.logger.log_transcription(sentence_data['text'], is_stable=True)
                 
                 # Send to LLM immediately
                 self._send_to_llm(sentence_data['text'])
@@ -1389,6 +1418,11 @@ class pipeStream:
             
             
             print(f"\033[91m\n[TRANSCRIPTION] {new_text}\033[0m")
+            if self.logger:
+                self.logger.log_transcription(new_text, is_stable=False, metadata={
+                    'similarity': None,  # Can add similarity score if available
+                    'language': self.last_language
+                })
             
             # Extract word-level timestamps
             word_timestamps = self._extract_word_timestamps(result)
