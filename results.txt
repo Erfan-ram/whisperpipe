@@ -1,0 +1,545 @@
+================================================================================
+ TEST: Test 1: Short Common Phrase
+================================================================================
+Reference text: 'the quick brown fox jumps over the lazy dog'
+Duration: 10 seconds
+
+--------------------------------------------------------------------------------
+ RUNNING: WhisperPipe (Your System)
+--------------------------------------------------------------------------------
+🎤 Say the phrase above when recording starts...
+Ready to record in 3 seconds...
+[EVALUATION] Logging enabled for evaluation
+Loading Whisper model: base
+Model loaded successfully!
+Using device: cuda
+Listening with Fixed Dual Buffer System...
+   Recording: 5/10s
+[TRANSCRIPTION] to fueron
+[NEW WORDS DETECTED] Word count: 0 → 2
+   Recording: 6/10s
+[TRANSCRIPTION] The quick brown fox jumps over the lazy doll.
+[NEW WORDS DETECTED] Word count: 2 → 9
+   Recording: 7/10s
+[TRANSCRIPTION] The quick brown fox jumps over the lazy dog.
+   Recording: 9/10s
+[TRANSCRIPTION] The quick brown fox jumps over the lazy dog.
+
+stable buffer: The quick brown fox jumps over the lazy dog.
+active buffer: 
+   Recording: 10/10s
+
+[SENTENCE COMPLETE] The quick brown fox jumps over the lazy dog.
+
+[LLM INPUT]: The quick brown fox jumps over the lazy dog.
+ As user didnt set a callback, it will just print the text , you can also get text using get_all_transcribed_text() and get_completed_sentences() methods
+
+[SESSION SUMMARY] Processed 1 sentences:
+  1. [23:13:21] The quick brown fox jumps over the lazy dog.
+
+✅ WhisperPipe test complete!
+   Final transcription: 'The quick brown fox jumps over the lazy dog.'
+
+⏸️  30-second break before Naive test...
+   (Take a breath, prepare to repeat the SAME phrase)
+
+--------------------------------------------------------------------------------
+ RUNNING: Naive Baseline
+--------------------------------------------------------------------------------
+🎤 Please repeat the EXACT SAME phrase!
+   Phrase: 'the quick brown fox jumps over the lazy dog'
+Ready to record in 3 seconds...
+Loading Whisper model for Naive Baseline: base
+Naive streaming started (TRUE re-processing every 1.0s)...
+Device: cuda
+Cache-busting enabled: Forces complete re-transcription each cycle
+  0%|                                                                                                                                                                        | 0/96 [00:00<?, ?frames/s]
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 198/198 [00:00<00:00, 2120.51frames/s]
+[NAIVE] Cycle #2 | Buffer: 2.0s | Process: 0.10s | RTF: 0.05x | Text: Thank you.
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 294/294 [00:00<00:00, 322.43frames/s]
+[NAIVE] Cycle #3 | Buffer: 2.9s | Process: 0.92s | RTF: 0.31x | Text: I'm going to get a little bit of a little bit of a...
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 396/396 [00:00<00:00, 437.71frames/s]
+[NAIVE] Cycle #4 | Buffer: 4.0s | Process: 0.91s | RTF: 0.23x | Text: I'm going to get a little bit of a little bit of a...
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 499/499 [00:02<00:00, 244.38frames/s]
+[NAIVE] Cycle #5 | Buffer: 5.0s | Process: 2.05s | RTF: 0.41x | Text: Okay. Aw, the Squiga doesn't sound like they have ...
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 595/595 [00:00<00:00, 1959.08frames/s]
+[NAIVE] Cycle #6 | Buffer: 6.0s | Process: 0.31s | RTF: 0.05x | Text: I'm going to do it again. I'm going to do it again...
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 812/812 [00:00<00:00, 7545.05frames/s]
+[NAIVE] Cycle #7 | Buffer: 8.1s | Process: 0.11s | RTF: 0.01x | Text: The quick brown fox jumped over the
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 908/908 [00:00<00:00, 7642.86frames/s]
+[NAIVE] Cycle #8 | Buffer: 9.1s | Process: 0.12s | RTF: 0.01x | Text: The quick brown fox jump over the lazy dumb.
+   Recording: 10/10s
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 998/998 [00:00<00:00, 6913.79frames/s]
+
+[NAIVE FINAL] The quick brown fox jump over the lazy dog.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 9.98s
+Total Processing Time: 4.77s
+Processing Overhead: 0.48x real-time
+Transcription Cycles: 8
+Avg Processing Time: 0.58s
+Peak Processing Time: 2.05s
+Min Processing Time: 0.10s
+Processing Time Growth: +27.5% (first half: 0.51s, second half: 0.65s)
+============================================================
+
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 998/998 [00:00<00:00, 8221.91frames/s]
+
+[NAIVE FINAL] The quick brown fox jump over the lazy dog.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 9.98s
+Total Processing Time: 4.90s
+Processing Overhead: 0.49x real-time
+Transcription Cycles: 8
+Avg Processing Time: 0.58s
+Peak Processing Time: 2.05s
+Min Processing Time: 0.10s
+Processing Time Growth: +27.5% (first half: 0.51s, second half: 0.65s)
+============================================================
+
+
+✅ Naive baseline test complete!
+   Final transcription: 'The quick brown fox jump over the lazy dog.'
+
+--------------------------------------------------------------------------------
+ CALCULATING METRICS
+--------------------------------------------------------------------------------
+
+================================================================================
+ RESULTS: Test 1: Short Common Phrase
+================================================================================
+
+Metric                                   WhisperPipe          Naive               
+--------------------------------------------------------------------------------
+Final WER                                22.22               % 33.33               %
+Edit Overhead                            1.11                x 55.44               x
+Stability Score                          89.66               % 25.93               %
+Transcription Changes                    2                    7                   
+Audio Duration                           10.46               s 10.25               s
+Total Processing Time                    2.34                s 4.66                s
+Processing Cycles                        4                    8                   
+Avg Time per Cycle                       0.59                s 0.58                s
+Processing Overhead (×RT)                0.22                x 0.45                x
+Commit Latency (mean)                    4010                ms (1 commits)
+
+IMPROVEMENTS (WhisperPipe vs Naive)
+--------------------------------------------------------------------------------
+✅ Edit Overhead Reduction: 98.0%
+✅ Stability Improvement: 63.7pp
+✅ Processing Time Reduction: 49.8%
+✅ Computational Overhead Reduction: 50.8%
+
+================================================================================
+ BREAK: Test 1 complete. Next test in 2 minutes...
+================================================================================
+
+
+################################################################################
+# TEST 2/3: Test 2: AI/ML Context
+################################################################################
+
+📝 PHRASE TO SAY:
+   'artificial intelligence and machine learning are transforming technology'
+
+💡 TIP: Say it naturally at normal speaking pace
+
+Press Enter to start this test...
+
+================================================================================
+ TEST: Test 2: AI/ML Context
+================================================================================
+Reference text: 'artificial intelligence and machine learning are transforming technology'
+Duration: 12 seconds
+
+--------------------------------------------------------------------------------
+ RUNNING: WhisperPipe (Your System)
+--------------------------------------------------------------------------------
+🎤 Say the phrase above when recording starts...
+Ready to record in 3 seconds...
+[EVALUATION] Logging enabled for evaluation
+Loading Whisper model: base
+Model loaded successfully!
+Using device: cuda
+Listening with Fixed Dual Buffer System...
+   Recording: 3/12s
+[TRANSCRIPTION] Artificial
+[NEW WORDS DETECTED] Word count: 0 → 1
+   Recording: 4/12s
+[TRANSCRIPTION] Artificial intelligence and...
+[NEW WORDS DETECTED] Word count: 1 → 3
+   Recording: 6/12s
+[TRANSCRIPTION] Artificial intelligence and martial learning are trapped.
+
+stable buffer: Artificial intelligence and
+active buffer: ...
+[NEW WORDS DETECTED] Word count: 3 → 7
+   Recording: 7/12s
+[TRANSCRIPTION] and martial learning are transforming technology.
+   Recording: 8/12s
+[TRANSCRIPTION] and machine learning are transforming technology.
+   Recording: 10/12s
+[TRANSCRIPTION] and machine learning are transforming technology.
+
+stable buffer: Artificial intelligence and and machine learning are transforming technology.
+active buffer: 
+   Recording: 12/12s
+
+[SENTENCE COMPLETE] Artificial intelligence and and machine learning are transforming technology.
+
+[LLM INPUT]: Artificial intelligence and and machine learning are transforming technology.
+ As user didnt set a callback, it will just print the text , you can also get text using get_all_transcribed_text() and get_completed_sentences() methods
+
+[SESSION SUMMARY] Processed 1 sentences:
+  1. [23:14:50] Artificial intelligence and and machine learning are transforming technology.
+
+✅ WhisperPipe test complete!
+   Final transcription: 'Artificial intelligence and and machine learning are transforming technology.'
+
+⏸️  30-second break before Naive test...
+   (Take a breath, prepare to repeat the SAME phrase)
+
+--------------------------------------------------------------------------------
+ RUNNING: Naive Baseline
+--------------------------------------------------------------------------------
+🎤 Please repeat the EXACT SAME phrase!
+   Phrase: 'artificial intelligence and machine learning are transforming technology'
+Ready to record in 3 seconds...
+Loading Whisper model for Naive Baseline: base
+Naive streaming started (TRUE re-processing every 1.0s)...
+Device: cuda
+Cache-busting enabled: Forces complete re-transcription each cycle
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 96/96 [00:00<00:00, 1064.91frames/s]
+[NAIVE] Cycle #1 | Buffer: 1.0s | Process: 0.09s | RTF: 0.10x | Text: Okay.
+  0%|                                                                                                                                                                       | 0/192 [00:00<?, ?frames/s]
+  0%|                                                                                                                                                                       | 0/300 [00:00<?, ?frames/s]
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 403/403 [00:00<00:00, 4532.36frames/s]
+[NAIVE] Cycle #4 | Buffer: 4.0s | Process: 0.09s | RTF: 0.02x | Text: Artificial
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 505/505 [00:00<00:00, 4296.45frames/s]
+[NAIVE] Cycle #5 | Buffer: 5.1s | Process: 0.12s | RTF: 0.02x | Text: Artificial intelligence.
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 608/608 [00:00<00:00, 4814.39frames/s]
+[NAIVE] Cycle #6 | Buffer: 6.1s | Process: 0.13s | RTF: 0.02x | Text: Artificial intelligence and martial arts.
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 716/716 [00:00<00:00, 6286.00frames/s]
+[NAIVE] Cycle #7 | Buffer: 7.2s | Process: 0.12s | RTF: 0.02x | Text: Artificial intelligence and martial learning are t...
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 812/812 [00:00<00:00, 6852.61frames/s]
+[NAIVE] Cycle #8 | Buffer: 8.1s | Process: 0.12s | RTF: 0.02x | Text: Artificial intelligence and martial learning are t...
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 915/915 [00:00<00:00, 7788.92frames/s]
+[NAIVE] Cycle #9 | Buffer: 9.2s | Process: 0.12s | RTF: 0.01x | Text: Artificial intelligence and martial learning are t...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1024/1024 [00:00<00:00, 8721.70frames/s]
+[NAIVE] Cycle #10 | Buffer: 10.2s | Process: 0.12s | RTF: 0.01x | Text: Artificial intelligence and martial learning are t...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1120/1120 [00:00<00:00, 9477.98frames/s]
+[NAIVE] Cycle #11 | Buffer: 11.2s | Process: 0.12s | RTF: 0.01x | Text: Artificial intelligence and martial learning are t...
+   Recording: 12/12s
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1190/1190 [00:00<00:00, 10000.14frames/s]
+
+[NAIVE FINAL] Artificial intelligence and martial learning are transforming technologies.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 11.90s
+Total Processing Time: 1.39s
+Processing Overhead: 0.12x real-time
+Transcription Cycles: 11
+Avg Processing Time: 0.11s
+Peak Processing Time: 0.13s
+Min Processing Time: 0.09s
+Processing Time Growth: +16.9% (first half: 0.10s, second half: 0.12s)
+============================================================
+
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1190/1190 [00:00<00:00, 10063.15frames/s]
+
+[NAIVE FINAL] Artificial intelligence and martial learning are transforming technologies.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 11.90s
+Total Processing Time: 1.51s
+Processing Overhead: 0.13x real-time
+Transcription Cycles: 11
+Avg Processing Time: 0.11s
+Peak Processing Time: 0.13s
+Min Processing Time: 0.09s
+Processing Time Growth: +16.9% (first half: 0.10s, second half: 0.12s)
+============================================================
+
+
+✅ Naive baseline test complete!
+   Final transcription: 'Artificial intelligence and martial learning are transforming technologies.'
+
+--------------------------------------------------------------------------------
+ CALCULATING METRICS
+--------------------------------------------------------------------------------
+
+================================================================================
+ RESULTS: Test 2: AI/ML Context
+================================================================================
+
+Metric                                   WhisperPipe          Naive               
+--------------------------------------------------------------------------------
+Final WER                                37.50               % 37.50               %
+Edit Overhead                            1.67                x 1.62                x
+Stability Score                          20.69               % 87.50               %
+Transcription Changes                    5                    7                   
+Audio Duration                           12.46               s 12.17               s
+Total Processing Time                    1.40                s 1.17                s
+Processing Cycles                        6                    10                  
+Avg Time per Cycle                       0.23                s 0.12                s
+Processing Overhead (×RT)                0.11                x 0.10                x
+Commit Latency (mean)                    2846                ms (1 commits)
+
+IMPROVEMENTS (WhisperPipe vs Naive)
+--------------------------------------------------------------------------------
+⚠️  Edit Overhead Reduction: 2.6% (unexpected)
+⚠️  Stability Improvement: 66.8pp (unexpected)
+⚠️  Processing Time Reduction: 19.5% (unexpected)
+⚠️  Computational Overhead Reduction: 16.7% (unexpected)
+
+================================================================================
+ BREAK: Test 2 complete. Next test in 2 minutes...
+================================================================================
+
+
+################################################################################
+# TEST 3/3: Test 3: Technical ASR
+################################################################################
+
+📝 PHRASE TO SAY:
+   'real time speech recognition systems require efficient algorithms'
+
+💡 TIP: Say it naturally at normal speaking pace
+
+Press Enter to start this test...
+
+================================================================================
+ TEST: Test 3: Technical ASR
+================================================================================
+Reference text: 'real time speech recognition systems require efficient algorithms'
+Duration: 12 seconds
+
+--------------------------------------------------------------------------------
+ RUNNING: WhisperPipe (Your System)
+--------------------------------------------------------------------------------
+🎤 Say the phrase above when recording starts...
+Ready to record in 3 seconds...
+[EVALUATION] Logging enabled for evaluation
+Loading Whisper model: base
+Model loaded successfully!
+Using device: cuda
+Listening with Fixed Dual Buffer System...
+   Recording: 3/12s
+[TRANSCRIPTION] real timesúa
+[NEW WORDS DETECTED] Word count: 0 → 2
+   Recording: 5/12s
+[TRANSCRIPTION] Real-time speech recognition systems.
+[NEW WORDS DETECTED] Word count: 2 → 4
+   Recording: 6/12s
+[TRANSCRIPTION] Real-time speech recognition systems require a...
+
+stable buffer: Real-time speech recognition systems
+active buffer: .
+[NEW WORDS DETECTED] Word count: 4 → 6
+   Recording: 8/12s
+[TRANSCRIPTION] 1968.
+   Recording: 9/12s
+[TRANSCRIPTION] require efficient algorithms.
+   Recording: 10/12s
+[TRANSCRIPTION] require efficient algorithms.
+
+stable buffer: Real-time speech recognition systems require efficient algorithms.
+active buffer: 
+   Recording: 12/12s
+
+[TRANSCRIPTION] [BLANK_AUDIO]
+
+[TRANSCRIPTION] [BLANK_AUDIO]
+
+[SENTENCE COMPLETE] Real-time speech recognition systems require efficient algorithms.
+
+[LLM INPUT]: Real-time speech recognition systems require efficient algorithms.
+ As user didnt set a callback, it will just print the text , you can also get text using get_all_transcribed_text() and get_completed_sentences() methods
+
+[SESSION SUMMARY] Processed 1 sentences:
+  1. [23:16:18] Real-time speech recognition systems require efficient algorithms.
+
+✅ WhisperPipe test complete!
+   Final transcription: 'Real-time speech recognition systems require efficient algorithms.'
+
+⏸️  30-second break before Naive test...
+   (Take a breath, prepare to repeat the SAME phrase)
+
+--------------------------------------------------------------------------------
+ RUNNING: Naive Baseline
+--------------------------------------------------------------------------------
+🎤 Please repeat the EXACT SAME phrase!
+   Phrase: 'real time speech recognition systems require efficient algorithms'
+Ready to record in 3 seconds...
+Loading Whisper model for Naive Baseline: base
+Naive streaming started (TRUE re-processing every 1.0s)...
+Device: cuda
+Cache-busting enabled: Forces complete re-transcription each cycle
+  0%|                                                                                                                                                                        | 0/96 [00:00<?, ?frames/s]
+  0%|                                                                                                                                                                       | 0/198 [00:00<?, ?frames/s]
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 300/300 [00:00<00:00, 501.88frames/s]
+[NAIVE] Cycle #3 | Buffer: 3.0s | Process: 0.60s | RTF: 0.20x | Text: believe me real
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 403/403 [00:00<00:00, 4183.24frames/s]
+[NAIVE] Cycle #4 | Buffer: 4.0s | Process: 0.10s | RTF: 0.02x | Text: Real time speech.
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 499/499 [00:00<00:00, 4980.35frames/s]
+[NAIVE] Cycle #5 | Buffer: 5.0s | Process: 0.10s | RTF: 0.02x | Text: Real time speech recognition.
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 601/601 [00:00<00:00, 2955.19frames/s]
+[NAIVE] Cycle #6 | Buffer: 6.0s | Process: 0.21s | RTF: 0.03x | Text: Real-time speech recognition with
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 704/704 [00:00<00:00, 6357.10frames/s]
+[NAIVE] Cycle #7 | Buffer: 7.0s | Process: 0.12s | RTF: 0.02x | Text: Real-time speech recognition requires a fish
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 800/800 [00:00<00:00, 7213.03frames/s]
+[NAIVE] Cycle #8 | Buffer: 8.0s | Process: 0.12s | RTF: 0.01x | Text: Real-time speech recognition requires efficient L
+100%|███████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 908/908 [00:00<00:00, 6604.15frames/s]
+[NAIVE] Cycle #9 | Buffer: 9.1s | Process: 0.14s | RTF: 0.02x | Text: Real-time speech recognition requires efficient al...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1011/1011 [00:00<00:00, 7381.14frames/s]
+[NAIVE] Cycle #10 | Buffer: 10.1s | Process: 0.14s | RTF: 0.01x | Text: Real-time speech recognition requires efficient al...
+100%|█████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1113/1113 [00:00<00:00, 9763.80frames/s]
+[NAIVE] Cycle #11 | Buffer: 11.1s | Process: 0.12s | RTF: 0.01x | Text: Real-time speech recognition requires efficient al...
+   Recording: 12/12s
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1196/1196 [00:00<00:00, 10342.92frames/s]
+
+[NAIVE FINAL] Real-time speech recognition requires efficient algorithms.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 11.97s
+Total Processing Time: 1.96s
+Processing Overhead: 0.16x real-time
+Transcription Cycles: 11
+Avg Processing Time: 0.17s
+Peak Processing Time: 0.60s
+Min Processing Time: 0.09s
+Processing Time Growth: -29.9% (first half: 0.20s, second half: 0.14s)
+============================================================
+
+100%|████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████████| 1196/1196 [00:00<00:00, 10425.55frames/s]
+
+[NAIVE FINAL] Real-time speech recognition requires efficient algorithms.
+
+============================================================
+NAIVE BASELINE - RESOURCE USAGE SUMMARY
+============================================================
+Total Audio Duration: 11.97s
+Total Processing Time: 2.08s
+Processing Overhead: 0.17x real-time
+Transcription Cycles: 11
+Avg Processing Time: 0.17s
+Peak Processing Time: 0.60s
+Min Processing Time: 0.09s
+Processing Time Growth: -29.9% (first half: 0.20s, second half: 0.14s)
+============================================================
+
+
+✅ Naive baseline test complete!
+   Final transcription: 'Real-time speech recognition requires efficient algorithms.'
+
+--------------------------------------------------------------------------------
+ CALCULATING METRICS
+--------------------------------------------------------------------------------
+
+================================================================================
+ RESULTS: Test 3: Technical ASR
+================================================================================
+
+Metric                                   WhisperPipe          Naive               
+--------------------------------------------------------------------------------
+Final WER                                37.50               % 62.50               %
+Edit Overhead                            3.71                x 2.50                x
+Stability Score                          38.10               % 68.18               %
+Transcription Changes                    6                    6                   
+Audio Duration                           12.57               s 12.18               s
+Total Processing Time                    2.51                s 1.77                s
+Processing Cycles                        8                    10                  
+Avg Time per Cycle                       0.31                s 0.18                s
+Processing Overhead (×RT)                0.20                x 0.14                x
+Commit Latency (mean)                    2598                ms (1 commits)
+
+IMPROVEMENTS (WhisperPipe vs Naive)
+--------------------------------------------------------------------------------
+⚠️  Edit Overhead Reduction: 48.6% (unexpected)
+⚠️  Stability Improvement: 30.1pp (unexpected)
+⚠️  Processing Time Reduction: 42.0% (unexpected)
+⚠️  Computational Overhead Reduction: 37.6% (unexpected)
+
+
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+ALL TESTS COMPLETED!
+🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉🎉
+
+================================================================================
+ COMPLETE BENCHMARK RESULTS - PAPER READY
+================================================================================
+
+Total Tests Completed: 3
+Date: 2025-10-09 23:13:04
+Model: base
+Language: en
+
+================================================================================
+ AVERAGE RESULTS ACROSS ALL TESTS
+================================================================================
+
+Metric                                   WhisperPipe          Naive               
+--------------------------------------------------------------------------------
+Final WER                                32.41               % 44.44               %
+Edit Overhead                            2.16                x 19.86               x
+Stability Score                          49.48               % 60.54               %
+Processing Overhead (×RT)                0.18                x 0.23                x
+Mean Commit Latency                      3151                ms N/A                 
+
+================================================================================
+ IMPROVEMENTS (WhisperPipe vs Naive Baseline)
+================================================================================
+✅ Edit Overhead Reduction:          15.6%
+✅ Stability Improvement:            +-11.1 percentage points
+✅ Processing Time Reduction:        -3.9%
+✅ Computational Overhead Reduction: -1.2%
+
+================================================================================
+ PAPER-READY ABSTRACT TEXT
+================================================================================
+
+Large-scale self-supervised models such as Whisper have demonstrated 
+state-of-the-art performance in offline automatic speech recognition (ASR). 
+However, Whisper was designed for batch processing of complete audio files 
+and lacks native support for real-time streaming scenarios. Direct application 
+of Whisper to streaming contexts results in unstable intermediate outputs, 
+excessive computational overhead from redundant reprocessing, and poor handling 
+of non-speech content.
+
+In this work, we present WhisperPipe, a streaming adaptation framework that 
+enables real-time transcription using Whisper while maintaining output stability 
+and computational efficiency. Our approach introduces three key contributions: 
+(i) a dual-buffer architecture that separates finalized text from active 
+processing audio, eliminating redundant reprocessing of stable content, 
+(ii) a similarity-based stabilization mechanism employing word-level timestamps 
+and multi-way confirmation to identify commitment points, and (iii) an adaptive 
+content filtering system that detects and rejects foreign-language segments and 
+transcription artifacts using Whisper's language identification capabilities.
+
+We evaluate our system through comparative experiments against naive streaming 
+baselines that re-transcribe entire audio buffers at each processing cycle. 
+Comprehensive experiments demonstrate that WhisperPipe achieves 2.16× 
+edit overhead (representing a 16% reduction compared to 19.86× 
+for naive re-transcription), 49% transcription consistency 
+(a -11 percentage point improvement over 61% 
+baseline stability), and 0.18× computational overhead 
+(achieving -1% reduction versus 0.23× 
+naive baseline), with 3151ms mean commit latency. 
+
+The dual-buffer architecture prevents linear growth in processing time, maintaining 
+near-constant computational cost per processing cycle while naive approaches exhibit 
+proportional growth. These results establish WhisperPipe as a computationally 
+efficient solution for deploying Whisper in latency-sensitive applications including 
+live captioning, voice assistants, and real-time accessibility tools.
+        
