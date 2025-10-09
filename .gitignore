@@ -134,6 +134,13 @@ dmypy.json
 *.flac
 *.ogg
 
+# Evaluation artifacts
+evaluation/results/
+evaluation/outputs/
+evaluation/datasets/
+evaluation/*.wav
+evaluation/*.mp3
+
 # Model files (Whisper models can be large)
 *.pt
 *.pth
