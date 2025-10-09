@@ -2,8 +2,8 @@
 # -*- coding: utf-8 -*-
 
 """
-Naive Streaming Baseline - Fair Real-Time Comparison
-Processes every 1 second like WhisperPipe, but re-transcribes ENTIRE buffer each time
+Naive Streaming Baseline - TRUE Re-processing Version
+Forces complete re-transcription by clearing Whisper cache each cycle
 Tracks processing time and resource usage for fair comparison
 """
 
@@ -13,6 +13,7 @@ import time
 import queue
 import threading
 import pyaudio
+import torch
 
 class NaiveStreamingWhisper:
     """
@@ -21,6 +22,8 @@ class NaiveStreamingWhisper:
     Key difference from WhisperPipe:
     - WhisperPipe: Only processes NEW audio (dual buffer prevents reprocessing)
     - Naive: Re-processes ALL audio EVERY time (grows linearly with time)
+    
+    FIXED: Forces true re-processing by clearing GPU cache and using fresh audio copy
     
     This demonstrates:
     - Higher computational cost (processing time increases over time)
@@ -33,6 +36,7 @@ class NaiveStreamingWhisper:
         self.model = whisper.load_model(model_name)
         self.language = language
         self.processing_interval = processing_interval
+        self.model_name = model_name
         
         self.audio_buffer = np.array([], dtype=np.float32)
         self.RATE = 16000
@@ -54,6 +58,9 @@ class NaiveStreamingWhisper:
         self.stream = None
         self.process_thread = None
         self.session_start_time = None
+        
+        # Device tracking
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
     
     def _audio_callback(self, in_data, frame_count, time_info, status):
         """Callback for audio stream"""
@@ -61,10 +68,22 @@ class NaiveStreamingWhisper:
         self.audio_queue.put(audio_data)
         return (in_data, pyaudio.paContinue)
     
+    def _clear_whisper_cache(self):
+        """
+        Force Whisper to not use cached computations
+        Clears GPU cache and creates fresh audio copy
+        """
+        if self.device == "cuda":
+            try:
+                torch.cuda.empty_cache()
+                torch.cuda.synchronize()
+            except:
+                pass
+    
     def _process_audio(self):
         """
         Processing thread - re-transcribe entire buffer every processing_interval
-        This simulates real-time streaming but with naive re-processing
+        FIXED: Forces true re-processing by clearing cache
         """
         last_process_time = time.time()
         
@@ -85,14 +104,29 @@ class NaiveStreamingWhisper:
                     buffer_duration = len(self.audio_buffer) / self.RATE
                     
                     if buffer_duration > 0.5:  # At least 0.5s of audio
-                        # KEY DIFFERENCE: Re-transcribe ENTIRE buffer every time
+                        # CRITICAL FIX: Clear cache before processing
+                        self._clear_whisper_cache()
+                        
+                        # Create a FRESH COPY of audio to prevent caching
+                        audio_copy = np.copy(self.audio_buffer).astype(np.float32)
+                        
+                        # Add small noise to prevent byte-identical caching
+                        # (imperceptible but breaks cache matching)
+                        audio_copy += np.random.randn(len(audio_copy)) * 1e-9
+                        
                         process_start = time.time()
                         
+                        # KEY DIFFERENCE: Re-transcribe ENTIRE buffer every time
                         result = self.model.transcribe(
-                            self.audio_buffer,  # ← ENTIRE buffer (grows over time)
+                            audio_copy,  # ← Fresh copy, cache-busting
                             fp16=False,
-                            language=self.language
+                            language=self.language,
+                            verbose=False  # Suppress output
                         )
+                        
+                        # Force completion before timing
+                        if self.device == "cuda":
+                            torch.cuda.synchronize()
                         
                         process_end = time.time()
                         processing_time = process_end - process_start
@@ -109,9 +143,11 @@ class NaiveStreamingWhisper:
                             # Calculate real-time factor
                             rtf = processing_time / buffer_duration if buffer_duration > 0 else 0
                             
-                            print(f"\033[91m[NAIVE] Buffer: {buffer_duration:.1f}s | "
-                                  f"Process: {processing_time:.2f}s | RTF: {rtf:.2f}x | "
-                                  f"Text: {text}\033[0m")
+                            print(f"\033[91m[NAIVE] Cycle #{self.transcription_count} | "
+                                  f"Buffer: {buffer_duration:.1f}s | "
+                                  f"Process: {processing_time:.2f}s | "
+                                  f"RTF: {rtf:.2f}x | "
+                                  f"Text: {text[:50]}{'...' if len(text) > 50 else ''}\033[0m")
                             
                             self.last_transcription = text
                             
@@ -120,7 +156,8 @@ class NaiveStreamingWhisper:
                                     'processing_time': processing_time,
                                     'buffer_duration': buffer_duration,
                                     'rtf': rtf,
-                                    'buffer_size_samples': len(self.audio_buffer)
+                                    'buffer_size_samples': len(self.audio_buffer),
+                                    'cycle_number': self.transcription_count
                                 })
                     
                     last_process_time = current_time
@@ -131,6 +168,8 @@ class NaiveStreamingWhisper:
                 time.sleep(0.05)
             except Exception as e:
                 print(f"Error in naive processing: {e}")
+                import traceback
+                traceback.print_exc()
                 time.sleep(0.1)
     
     def start_streaming(self):
@@ -148,6 +187,9 @@ class NaiveStreamingWhisper:
         if self.logger:
             self.logger.start_session()
         
+        # Clear cache at start
+        self._clear_whisper_cache()
+        
         # Open audio stream
         self.stream = self.p.open(
             format=pyaudio.paInt16,
@@ -163,7 +205,9 @@ class NaiveStreamingWhisper:
         self.process_thread.daemon = True
         self.process_thread.start()
         
-        print(f"Naive streaming started (processes every {self.processing_interval}s)...")
+        print(f"Naive streaming started (TRUE re-processing every {self.processing_interval}s)...")
+        print(f"Device: {self.device}")
+        print(f"Cache-busting enabled: Forces complete re-transcription each cycle")
     
     def stop_streaming(self):
         """Stop streaming"""
@@ -178,13 +222,20 @@ class NaiveStreamingWhisper:
         
         # Final transcription
         if len(self.audio_buffer) > 0:
+            self._clear_whisper_cache()
+            audio_copy = np.copy(self.audio_buffer).astype(np.float32)
+            
             process_start = time.time()
             
             result = self.model.transcribe(
-                self.audio_buffer,
+                audio_copy,
                 fp16=False,
-                language=self.language
+                language=self.language,
+                verbose=False
             )
+            
+            if self.device == "cuda":
+                torch.cuda.synchronize()
             
             process_end = time.time()
             processing_time = process_end - process_start
@@ -215,9 +266,20 @@ class NaiveStreamingWhisper:
             print(f"Total Audio Duration: {audio_duration:.2f}s")
             print(f"Total Processing Time: {self.total_processing_time:.2f}s")
             print(f"Processing Overhead: {(self.total_processing_time/audio_duration):.2f}x real-time")
-            print(f"Transcription Count: {self.transcription_count}")
-            print(f"Avg Processing Time: {np.mean(self.processing_times):.2f}s" if self.processing_times else "N/A")
-            print(f"Peak Processing Time: {max(self.processing_times):.2f}s" if self.processing_times else "N/A")
+            print(f"Transcription Cycles: {self.transcription_count}")
+            
+            if self.processing_times:
+                print(f"Avg Processing Time: {np.mean(self.processing_times):.2f}s")
+                print(f"Peak Processing Time: {max(self.processing_times):.2f}s")
+                print(f"Min Processing Time: {min(self.processing_times):.2f}s")
+                
+                # Show growth trend
+                if len(self.processing_times) > 1:
+                    first_half_avg = np.mean(self.processing_times[:len(self.processing_times)//2])
+                    second_half_avg = np.mean(self.processing_times[len(self.processing_times)//2:])
+                    growth = ((second_half_avg - first_half_avg) / first_half_avg * 100) if first_half_avg > 0 else 0
+                    print(f"Processing Time Growth: {growth:+.1f}% (first half: {first_half_avg:.2f}s, second half: {second_half_avg:.2f}s)")
+            
             print(f"{'='*60}\n")
     
     def get_resource_stats(self):
@@ -238,4 +300,5 @@ class NaiveStreamingWhisper:
     def close(self):
         """Clean up"""
         self.stop_streaming()
+        self._clear_whisper_cache()
         self.p.terminate()
