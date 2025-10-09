@@ -580,9 +580,9 @@ def main():
             'duration': 12
         },
         {
-            'name': 'Test 3: Technical ASR',
-            'reference': 'real time speech recognition systems require efficient algorithms',
-            'duration': 12
+            'name': 'Test 3: Long Context (20s)',
+            'reference': 'speech recognition technology has advanced significantly over the past decade with deep learning models achieving human level performance on many benchmarks',
+            'duration': 20
         },
         {
             'name': 'Test 4: Natural Speech',
@@ -620,9 +620,9 @@ def main():
             'duration': 12
         },
         {
-            'name': 'Test 11: Long Context (20s)',
-            'reference': 'speech recognition technology has advanced significantly over the past decade with deep learning models achieving human level performance on many benchmarks',
-            'duration': 20
+            'name': 'Test 11: Technical ASR',
+            'reference': 'real time speech recognition systems require efficient algorithms',
+            'duration': 12
         },
         {
             'name': 'Test 12: Long Technical Explanation (25s)',

@@ -124,7 +124,7 @@ class NaiveStreamingWhisper:
                             language=self.language,
                             word_timestamps=True,  # Enable word-level timestamps (same as WhisperPipe)
                             suppress_tokens=None,  # Don't suppress any tokens (same as WhisperPipe)
-                            verbose=False  # Suppress output
+                            # verbose=False  # Suppress output
                         )
                         
                         # Force completion before timing
