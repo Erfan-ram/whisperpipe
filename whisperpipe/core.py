@@ -1393,18 +1393,6 @@ class pipeStream:
                 word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
-            if self.logger:
-                process_end = time.time()
-                processing_time = process_end - process_start
-                self.total_processing_time += processing_time
-                self.processing_times.append(processing_time)
-                
-                # Update metadata logging
-                self.logger.log_transcription(new_text, is_stable=False, metadata={
-                    'processing_time': processing_time,
-                    'buffer_duration': len(self.active_audio_buffer) / self.RATE,
-                    'language': self.last_language
-                })
                 
             # #TODO: idea : there is a methode also focused on silence detection to make the most of it but need a bit more resources
             # Check last quarter of audio buffer for silence before full transcription
@@ -1429,6 +1417,19 @@ class pipeStream:
             new_text = result["text"].strip()
             # self._debug_print(f"\n[TRANSCRIPTION pure RESULT] -{new_text}-")
             
+            if self.logger:
+                process_end = time.time()
+                processing_time = process_end - process_start
+                self.total_processing_time += processing_time
+                self.processing_times.append(processing_time)
+                
+                # Update metadata logging
+                self.logger.log_transcription(new_text, is_stable=False, metadata={
+                    'processing_time': processing_time,
+                    'buffer_duration': len(self.active_audio_buffer) / self.RATE,
+                    'language': self.last_language
+                })
+                
             if not new_text:
                 # only empty transcription found mode
                 self.empty_transcribe_rejection_count += 1
