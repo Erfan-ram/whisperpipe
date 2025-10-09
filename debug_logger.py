@@ -17,7 +17,7 @@ transcriber.stop_streaming()
 
 if transcriber.logger:
     history = transcriber.logger.get_transcription_history()
-    
+
     print(f"\n{'='*60}")
     print(f"Total transcriptions logged: {len(history)}")
     print(f"{'='*60}")

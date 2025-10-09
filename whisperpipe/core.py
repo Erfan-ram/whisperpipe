@@ -144,6 +144,13 @@ class pipeStream:
         # Summary tracking
         self._summary_printed = False
         
+        if enable_evaluation:
+            self.total_processing_time = 0.0
+            self.processing_times = []
+        else:
+            self.total_processing_time = None
+            self.processing_times = None
+        
         # Initialize PyAudio
         try:
             self.p = pyaudio.PyAudio()
@@ -1375,6 +1382,8 @@ class pipeStream:
                     self._debug_print(f"[LANGUAGE DETECTION] Skipping language validation for this model")
                     
             # ------------------------------------- should be tested more --------------------------------------------------------------
+            if self.logger:
+                process_start = time.time()
                     
             # Transcribe using OpenAI Whisper with word-level timestamps
             result = self.model.transcribe(
@@ -1384,6 +1393,19 @@ class pipeStream:
                 word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
+            if self.logger:
+                process_end = time.time()
+                processing_time = process_end - process_start
+                self.total_processing_time += processing_time
+                self.processing_times.append(processing_time)
+                
+                # Update metadata logging
+                self.logger.log_transcription(new_text, is_stable=False, metadata={
+                    'processing_time': processing_time,
+                    'buffer_duration': len(self.active_audio_buffer) / self.RATE,
+                    'language': self.last_language
+                })
+                
             # #TODO: idea : there is a methode also focused on silence detection to make the most of it but need a bit more resources
             # Check last quarter of audio buffer for silence before full transcription
             # quarter_samples = len(audio_buffer) // 4
@@ -1589,6 +1611,22 @@ class pipeStream:
             if self.stream:
                 self.stream.close()
             return False
+        
+    def get_resource_stats(self):
+        """Get resource usage statistics"""
+        if not self.logger:
+            return None
+        
+        total_audio = 0
+        for sentence in self.completed_sentences:
+            total_audio += sentence.get('duration', 0)
+        
+        return {
+            'total_processing_time': self.total_processing_time or 0,
+            'audio_duration': total_audio,
+            'processing_overhead': (self.total_processing_time / total_audio) if total_audio > 0 else 0,
+            'processing_times': self.processing_times.copy() if self.processing_times else []
+        }
     
     def stop_streaming(self):
         """Stop streaming and clean up"""
@@ -1657,5 +1695,3 @@ class pipeStream:
                     self.print_session_summary()
         except:
             pass  # Ignore errors in destructor
-
-
