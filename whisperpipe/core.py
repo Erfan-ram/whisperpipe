@@ -127,6 +127,9 @@ class pipeStream:
         # Summary tracking
         self._summary_printed = False
         
+        # For evaluation metrics
+        self.intermediate_outputs = []
+        
         # Initialize PyAudio
         try:
             self.p = pyaudio.PyAudio()
@@ -1347,6 +1350,7 @@ class pipeStream:
                     
             # ------------------------------------- should be tested more --------------------------------------------------------------
                     
+            transcribe_start_time = time.time()
             # Transcribe using OpenAI Whisper with word-level timestamps
             result = self.model.transcribe(
                 audio_buffer, 
@@ -1355,27 +1359,16 @@ class pipeStream:
                 word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
-            # #TODO: idea : there is a methode also focused on silence detection to make the most of it but need a bit more resources
-            # Check last quarter of audio buffer for silence before full transcription
-            # quarter_samples = len(audio_buffer) // 4
-            # if quarter_samples > 0:
-            #     last_quarter = audio_buffer[-quarter_samples:]
-            #     # Quick silence check on last quarter
-            #     test_res = self.model.transcribe(
-            #         last_quarter, 
-            #         fp16=False, 
-            #         language="en",
-            #         suppress_tokens=None
-            #     )
-            #
-            #     # If last quarter is silent/empty, transcribe full buffer
-            #     if not test_res["text"].strip():
-            #         self._debug_print("[SILENCE DETECTED] Last quarter silent, processing full buffer")
-            #     else:
-            #         self._debug_print(f"[ACTIVITY DETECTED] Last quarter: '{test_res['text'].strip()}'")
-
+            transcribe_time_taken = (time.time() - transcribe_start_time) * 1000 # in ms
             
             new_text = result["text"].strip()
+
+            if new_text:
+                full_intermediate_text = self.stable_text_buffer + (" " if self.stable_text_buffer and new_text else "") + new_text
+                self.intermediate_outputs.append({
+                    'text': full_intermediate_text,
+                    'processing_time': transcribe_time_taken
+                })
             # self._debug_print(f"\n[TRANSCRIPTION pure RESULT] -{new_text}-")
             
             if not new_text:
@@ -1460,6 +1453,13 @@ class pipeStream:
         Returns the complete list of sentence dictionaries with timestamp and duration
         """
         return self.completed_sentences.copy()
+
+    def get_intermediate_outputs(self):
+        """
+        Get all intermediate transcriptions and their processing times.
+        Returns a list of dictionaries with 'text' and 'processing_time'.
+        """
+        return self.intermediate_outputs
     
     def _send_to_llm(self, text):
         """Send completed sentence to LLM for processing"""
@@ -1508,6 +1508,8 @@ class pipeStream:
         
         # Reset summary tracking
         self._summary_printed = False
+        
+        self.intermediate_outputs = []
         
         # Open PyAudio stream
         try:
