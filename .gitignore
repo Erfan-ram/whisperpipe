@@ -129,7 +129,7 @@ dmypy.json
 .pyre/
 
 # Audio files (if any are generated during testing)
-*.wav
+# *.wav
 *.mp3
 *.flac
 *.ogg
@@ -138,7 +138,7 @@ dmypy.json
 evaluation/results/
 evaluation/outputs/
 evaluation/datasets/
-evaluation/*.wav
+# evaluation/*.wav
 evaluation/*.mp3
 
 # Model files (Whisper models can be large)
