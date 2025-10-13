@@ -7,6 +7,7 @@
 - **SI (Stability Index)**: Output consistency across intermediate results
 - **Latency**: Processing time per transcription
 - **Total Processing Time**: Overall time excluding finalization delay
+- **Resource Usage**: GPU memory, RAM, CPU, and computational efficiency
 
 ## Key Differences in Testing Methodology
 
@@ -16,24 +17,30 @@
 - Uses dual-buffer architecture with stability mechanisms
 - Processing time measured as actual audio duration (not wall clock time)
 - Finalization delay is excluded from processing time measurement
+- **Consistent resource usage** due to stable buffer management
 
 **This approach simulates how whisperpipe works in real-time:**
 - Audio comes in chunks over time
 - Each new chunk is appended to the buffer
 - Processing happens continuously as audio arrives
 - The dual-buffer prevents reprocessing of stable text
+- **Memory usage remains bounded** as stable text is committed
 
 ### Baseline Whisper (Simulated Streaming)
 - Transcribes progressively larger chunks: 0-1s, 0-2s, 0-3s, ..., 0-end
 - Simulates real streaming where the model reprocesses from the beginning
 - Each transcription is independent (no sliding window)
 - More realistic comparison to show the benefit of dual-buffer architecture
+- **Growing resource usage** as audio length increases
 
 ## Prerequisites
 
 ```bash
 # Install required packages
-pip install soundfile librosa numpy openai-whisper torch
+pip install soundfile librosa numpy openai-whisper torch psutil
+
+# Optional: For NVIDIA GPU monitoring
+pip install pynvml
 
 # Optional: For better audio handling
 pip install scipy
@@ -138,6 +145,42 @@ BENCHMARK COMPLETE
 - Time to process all audio
 - **whisperpipe**: Excludes finalization delay (actual processing only)
 - **Baseline**: Total time for all progressive transcriptions
+
+### Resource Usage Metrics
+
+#### Peak GPU Memory (MB)
+- Maximum GPU memory allocated during processing
+- **whisperpipe**: Bounded due to dual-buffer architecture
+- **Baseline**: Grows with audio length (reprocessing from start)
+
+#### Peak RAM (MB)
+- Maximum system RAM used by the process
+- Shows memory footprint of the system
+
+#### GPU Utilization (%)
+- Average GPU usage during processing
+- Higher utilization indicates more intensive computation
+
+#### Resource Efficiency Index (REI)
+- **Academic Definition**: Peak GPU Memory / Audio Duration (MB/s)
+- **Lower is better** - indicates less memory needed per second of audio
+- Formula: `REI = Peak_Memory_MB / Audio_Duration_seconds`
+- Measures memory efficiency relative to audio processed
+
+#### Memory Growth Rate (MB/s)
+- Rate at which memory increases over time
+- **Academic Definition**: Linear regression slope of memory usage over time
+- **whisperpipe**: Near zero (stable memory usage)
+- **Baseline**: Positive value (memory grows with audio length)
+- Useful for identifying memory leaks or unbounded growth
+
+#### Computational Intensity (CI)
+- **Academic Definition**: Normalized measure of computational resource usage
+- Formula: `CI = (GPU_Utilization% / 100) × (Processing_Time / Audio_Duration)`
+- **Lower is better** - indicates more efficient use of GPU resources
+- CI = 1.0 means using 100% GPU for real-time processing
+- CI < 1.0 means processing faster than real-time
+- CI > 1.0 means processing slower than real-time
 
 ## Key Implementation Details
 

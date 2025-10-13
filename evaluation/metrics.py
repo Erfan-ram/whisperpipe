@@ -221,3 +221,96 @@ def calculate_metrics_summary(
         'avg_latency_ms': avg_latency,
         'num_intermediate_outputs': len(intermediate_outputs)
     }
+
+
+def calculate_resource_efficiency_index(peak_memory_mb: float, audio_duration_s: float) -> float:
+    """
+    Calculate Resource Efficiency Index (REI)
+    
+    REI measures memory efficiency relative to audio duration.
+    Lower is better - indicates less memory needed per second of audio.
+    
+    REI = Peak_Memory_MB / Audio_Duration_s
+    
+    Args:
+        peak_memory_mb: Peak memory usage in megabytes
+        audio_duration_s: Duration of audio in seconds
+        
+    Returns:
+        Resource Efficiency Index (MB/s)
+    """
+    if audio_duration_s <= 0:
+        return float('inf')
+    
+    return peak_memory_mb / audio_duration_s
+
+
+def calculate_memory_growth_rate(memory_samples: list, timestamps: list) -> float:
+    """
+    Calculate memory growth rate over time
+    
+    This metric identifies memory leaks or unbounded growth.
+    Uses linear regression on memory usage over time.
+    
+    Args:
+        memory_samples: List of memory measurements in MB
+        timestamps: List of corresponding timestamps in seconds
+        
+    Returns:
+        Memory growth rate in MB/second (0 indicates stable, >0 indicates growth)
+    """
+    if len(memory_samples) < 2 or len(timestamps) < 2:
+        return 0.0
+    
+    import numpy as np
+    
+    # Simple linear regression: y = mx + b
+    # where y = memory, x = time, m = growth rate
+    x = np.array(timestamps)
+    y = np.array(memory_samples)
+    
+    # Calculate slope (growth rate)
+    n = len(x)
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    
+    numerator = np.sum((x - x_mean) * (y - y_mean))
+    denominator = np.sum((x - x_mean) ** 2)
+    
+    if denominator == 0:
+        return 0.0
+    
+    slope = numerator / denominator
+    
+    return max(0, slope)  # Return 0 if negative (memory decreasing)
+
+
+def calculate_computational_intensity(gpu_util_pct: float, processing_time: float, audio_duration: float) -> float:
+    """
+    Calculate Computational Intensity (CI)
+    
+    CI measures how much computational resource is used relative to real-time.
+    CI = (GPU_Utilization% / 100) * (Processing_Time / Audio_Duration)
+    
+    A value of 1.0 means using 100% GPU for real-time processing.
+    Lower is better - indicates more efficient use of resources.
+    
+    Args:
+        gpu_util_pct: Average GPU utilization percentage
+        processing_time: Total processing time in seconds
+        audio_duration: Audio duration in seconds
+        
+    Returns:
+        Computational Intensity (dimensionless)
+    """
+    if audio_duration <= 0:
+        return float('inf')
+    
+    # Normalize GPU utilization to 0-1
+    gpu_factor = gpu_util_pct / 100.0
+    
+    # Time factor (>1 means slower than real-time, <1 means faster)
+    time_factor = processing_time / audio_duration
+    
+    return gpu_factor * time_factor
+
