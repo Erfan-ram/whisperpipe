@@ -1359,7 +1359,7 @@ class pipeStream:
                 word_timestamps=True,  # Enable word-level timestamps!
                 suppress_tokens=None  # Don't suppress any tokens, including special ones
             )
-            transcribe_time_taken = (time.time() - transcribe_start_time) * 1000 # in ms
+            transcribe_time_taken = time.time() - transcribe_start_time  # in seconds
             
             new_text = result["text"].strip()
 

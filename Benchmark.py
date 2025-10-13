@@ -35,7 +35,7 @@ audio_duration = len(audio) / 16000.0
 print(f"Audio duration: {audio_duration:.2f} seconds\n")
 
 # ============================================================================
-# Test 1: whisperpipe (Enhanced Streaming - Incremental Chunks)
+# Test 1 main: whisperpipe (Enhanced Streaming - Incremental Chunks)
 # ============================================================================
 print("="*80)
 print("TEST 1: whisperpipe (Enhanced Streaming - Incremental Chunks)")
@@ -163,7 +163,7 @@ pipe.close()
 # ============================================================================
 # Test 1-OLD: whisperpipe (Enhanced Streaming - Original Method) [COMMENTED]
 # ============================================================================
-# This is the original test method - kept for reference but commented out
+# This is the original test method but dont use it - kept for reference but commented out
 """
 print("="*80)
 print("TEST 1: whisperpipe (Enhanced Streaming)")
