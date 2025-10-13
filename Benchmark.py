@@ -27,25 +27,6 @@ chunks = [audio[i:i+chunk_size] for i in range(0, len(audio), chunk_size)]
 # Ground truth transcription
 reference = "the stale smell of old beer lingers it takes heat to bring out the odor a cold dip restores health and zest a salt pickle taste fine with ham tacos al pastor are my favorite a zestful food is the hot cross bun"
 
-# --- Test Whisper Baseline ---
-print("--- Testing Whisper Baseline ---")
-# Initialize and run baseline
-baseline = WhisperBaseline(model_name="base", language="en")
-for chunk in chunks:
-    output, time_taken = baseline.process_audio_chunk(chunk)
-
-# Calculate metrics
-final = baseline.finalize()
-intermediates = [o['text'] for o in baseline.get_intermediate_outputs()]
-times = [o['processing_time'] for o in baseline.get_intermediate_outputs()]
-
-metrics = calculate_metrics_summary(reference, final, intermediates, times)
-print("--- Whisper Baseline Results ---")
-print(f"WER: {metrics['wer']:.2f}%")
-print(f"SI: {metrics['stability_index']:.2f}%")
-print(f"Latency: {metrics['avg_latency_ms']:.2f} ms")
-
-
 # --- Test whisperpipe ---
 print("\n--- Testing whisperpipe ---")
 
