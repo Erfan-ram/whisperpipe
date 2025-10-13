@@ -79,20 +79,20 @@ pipe_monitor.start()
 # Track actual processing time (excluding finalization wait)
 pipe_start_time = time.time()
 
-# Feed audio in 1-second increments (0-1s, then 1-2s, then 2-3s, etc.)
-print("Feeding audio in 1-second incremental chunks to whisperpipe...")
+# Feed audio in 2-second increments (0-2s, then 2-4s, then 4-6s, etc.)
+print("Feeding audio in 2-second incremental chunks to whisperpipe...")
 sample_rate = 16000
-increment_seconds = 1.0
+increment_seconds = 2.0
 increment_samples = int(increment_seconds * sample_rate)
 
-for i in range(int(audio_duration)):
-    start_sample = i * increment_samples
-    end_sample = min((i + 1) * increment_samples, len(audio))
+for i in range(0, int(audio_duration), 2):
+    start_sample = i * sample_rate
+    end_sample = min((i + 2) * sample_rate, len(audio))
     
     if start_sample >= len(audio):
         break
     
-    # Get the chunk for this second (not from 0, but just this increment)
+    # Get the chunk for this 2-second period
     audio_chunk = audio[start_sample:end_sample]
     
     # Split into micro-chunks for realistic processing
@@ -100,7 +100,7 @@ for i in range(int(audio_duration)):
     micro_chunks = [audio_chunk[j:j+realtime_chunk_size] for j in range(0, len(audio_chunk), realtime_chunk_size)]
     chunk_duration = realtime_chunk_size / sample_rate
     
-    print(f"Feeding second {i}-{i+1}...", end="\r")
+    print(f"Feeding second {i}-{i+2}...", end="\r")
     
     # Feed micro-chunks
     for micro_chunk in micro_chunks:

@@ -131,7 +131,7 @@ dmypy.json
 # Audio files (if any are generated during testing)
 # *.wav
 *.mp3
-*.flac
+# *.flac
 *.ogg
 
 # Evaluation artifacts
