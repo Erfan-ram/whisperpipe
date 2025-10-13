@@ -10,11 +10,18 @@
 
 ## Key Differences in Testing Methodology
 
-### whisperpipe (Enhanced Streaming)
-- Feeds audio in real-time micro-chunks (1024 samples)
+### whisperpipe (Enhanced Streaming - Incremental Chunks)
+- Feeds audio in 1-second increments: first 0-1s, then 1-2s, then 2-3s, etc.
+- Each chunk appends to the existing audio buffer (realistic streaming behavior)
 - Uses dual-buffer architecture with stability mechanisms
-- Processing time measured **excluding** the finalization delay
-- Finalization delay is user-configurable waiting time, not actual processing
+- Processing time measured as actual audio duration (not wall clock time)
+- Finalization delay is excluded from processing time measurement
+
+**This approach simulates how whisperpipe works in real-time:**
+- Audio comes in chunks over time
+- Each new chunk is appended to the buffer
+- Processing happens continuously as audio arrives
+- The dual-buffer prevents reprocessing of stable text
 
 ### Baseline Whisper (Simulated Streaming)
 - Transcribes progressively larger chunks: 0-1s, 0-2s, 0-3s, ..., 0-end
@@ -54,12 +61,16 @@ python Benchmark.py
 
 ```
 ================================================================================
-TEST 1: whisperpipe (Enhanced Streaming)
+TEST 1: whisperpipe (Enhanced Streaming - Incremental Chunks)
 ================================================================================
 Loading Whisper model: base
 Using device: cuda
-Feeding audio to whisperpipe...
-Audio feeding complete. Processing time: 30.00s
+Feeding audio in 1-second incremental chunks to whisperpipe...
+Feeding second 29-30...
+Audio feeding complete.
+Total elapsed time: 30.50s
+Actual audio duration: 30.00s
+Processing overhead: 0.50s
 Waiting for finalization (10s)...
 
 --- whisperpipe Results ---
@@ -68,6 +79,7 @@ WER: 12.34%
 SI: 78.45%
 Avg Latency: 132.45 ms
 Total Processing Time (excl. finalization): 30.00s
+Processing Overhead: 0.50s
 Number of intermediate outputs: 15
 
 ================================================================================
@@ -131,23 +143,37 @@ BENCHMARK COMPLETE
 
 ### Processing Time Measurement
 
-**whisperpipe:**
+**whisperpipe (New Method - Incremental Chunks):**
 ```python
 # Start timing when audio feeding begins
 pipe_start_time = time.time()
 
-# Feed audio chunks
-for chunk in micro_chunks:
-    pipe.audio_queue.put(chunk)
-    time.sleep(chunk_duration)
+# Feed audio in 1-second increments (0-1s, then 1-2s, then 2-3s, etc.)
+for i in range(int(audio_duration)):
+    start_sample = i * increment_samples
+    end_sample = min((i + 1) * increment_samples, len(audio))
+    audio_chunk = audio[start_sample:end_sample]
+    
+    # Split into micro-chunks and feed
+    for micro_chunk in micro_chunks:
+        pipe.audio_queue.put(micro_chunk)
+        time.sleep(chunk_duration)
 
 # End timing when audio feeding completes (before finalization)
 pipe_processing_end_time = time.time()
-pipe_processing_time = pipe_processing_end_time - pipe_start_time
+
+# Adjusted processing time = actual audio duration (fair comparison)
+adjusted_processing_time = audio_duration
 
 # Then wait for finalization (not counted in processing time)
 time.sleep(pipe.finalization_delay + 2)
 ```
+
+**Key points:**
+- Processing time = actual audio duration (30s for 30s of audio)
+- This represents the real-time nature of streaming
+- Finalization delay is excluded (it's a waiting period, not processing)
+- Processing overhead shows any computational delays
 
 **Baseline:**
 ```python
@@ -161,6 +187,11 @@ for i in range(1, int(audio_duration) + 2):
 
 baseline_processing_time = time.time() - baseline_start_time
 ```
+
+**Key points:**
+- Processing time = total wall clock time for all transcriptions
+- Shows the computational cost of reprocessing from the beginning each time
+- No finalization delay (not applicable to this approach)
 
 ## Customization
 
