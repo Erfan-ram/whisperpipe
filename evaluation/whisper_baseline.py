@@ -46,7 +46,7 @@ class WhisperBaseline:
         
     def process_audio_chunk(self, audio_chunk: np.ndarray) -> Tuple[str, float]:
         """
-        Process an audio chunk and return transcription
+        Process an audio chunk and return transcription (sliding window approach)
         
         Args:
             audio_chunk: Audio data as numpy array
@@ -91,6 +91,46 @@ class WhisperBaseline:
         
         return transcription, processing_time
     
+    def transcribe_progressive_chunk(self, audio_chunk: np.ndarray) -> Tuple[str, float]:
+        """
+        Transcribe a progressively growing audio chunk (0-1s, 0-2s, 0-3s, etc.)
+        This simulates real streaming where the model processes from the beginning each time.
+        
+        Args:
+            audio_chunk: Audio data from start (0) to current position
+            
+        Returns:
+            Tuple of (transcription, processing_time)
+        """
+        start_time = time.time()
+        
+        # Transcribe the entire chunk from beginning
+        if len(audio_chunk) > self.RATE * 0.1:  # At least 0.1s of audio
+            try:
+                result = self.model.transcribe(
+                    audio_chunk,
+                    language=self.language,
+                    fp16=False if self.device == "cpu" else True,
+                    task="transcribe"
+                )
+                transcription = result.get("text", "").strip()
+            except Exception as e:
+                print(f"Error in transcription: {e}")
+                transcription = ""
+        else:
+            transcription = ""
+        
+        processing_time = time.time() - start_time
+        
+        # Store intermediate output (but don't add to audio_buffer since we're not using sliding window)
+        self.intermediate_outputs.append({
+            'timestamp': time.time(),
+            'text': transcription,
+            'processing_time': processing_time
+        })
+        
+        return transcription, processing_time
+    
     def finalize(self) -> str:
         """
         Finalize and return the last transcription
@@ -111,3 +151,4 @@ class WhisperBaseline:
         self.audio_buffer = np.array([], dtype=np.float32)
         self.intermediate_outputs = []
         self.final_output = ""
+
