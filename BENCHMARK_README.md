@@ -177,10 +177,12 @@ BENCHMARK COMPLETE
 #### Computational Intensity (CI)
 - **Academic Definition**: Normalized measure of computational resource usage
 - Formula: `CI = (GPU_Utilization% / 100) × (Processing_Time / Audio_Duration)`
-- **Lower is better** - indicates more efficient use of GPU resources
-- CI = 1.0 means using 100% GPU for real-time processing
+- **Fallback**: Uses CPU utilization when GPU utilization is not available (0%)
+- **Lower is better** - indicates more efficient use of computational resources
+- CI = 1.0 means using 100% GPU/CPU for real-time processing
 - CI < 1.0 means processing faster than real-time
 - CI > 1.0 means processing slower than real-time
+- **Note**: When GPU utilization monitoring is unavailable (e.g., no NVML), the metric automatically falls back to CPU utilization to provide meaningful comparison
 
 ## Key Implementation Details
 

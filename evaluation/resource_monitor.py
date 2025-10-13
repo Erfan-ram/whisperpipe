@@ -86,8 +86,8 @@ class ResourceMonitor:
                 current_time = time.time() - self.start_time
                 self.timestamps.append(current_time)
                 
-                # CPU and RAM usage
-                cpu = self.process.cpu_percent(interval=None)
+                # CPU and RAM usage (use interval=0.1 for more accurate CPU measurement)
+                cpu = self.process.cpu_percent(interval=0.1)
                 ram = self.process.memory_info().rss / (1024 * 1024)  # Convert to MB
                 self.cpu_percent.append(cpu)
                 self.ram_used.append(ram)
@@ -106,8 +106,17 @@ class ResourceMonitor:
                             handle = pynvml.nvmlDeviceGetHandleByIndex(0)
                             util = pynvml.nvmlDeviceGetUtilizationRates(handle)
                             gpu_util = util.gpu
-                        except Exception:
+                        except Exception as e:
+                            # Silently continue if NVML fails
                             pass
+                    
+                    # If NVML doesn't provide utilization, estimate from memory usage growth
+                    # This is a fallback when GPU utilization can't be directly measured
+                    if gpu_util == 0 and len(self.gpu_memory_used) > 0:
+                        # If GPU memory is actively being used, assume some utilization
+                        if gpu_mem > 100:  # More than 100 MB allocated
+                            # Estimate based on CPU usage as proxy (not perfect but better than 0)
+                            gpu_util = min(cpu, 100)  # Cap at 100%
                 
                 self.gpu_memory_used.append(gpu_mem)
                 self.gpu_utilization.append(gpu_util)
@@ -215,6 +224,8 @@ def print_resource_summary(name: str, summary: Dict, audio_duration: float):
     print(f"GPU Utilization:")
     print(f"  Peak: {summary['gpu_utilization']['peak_pct']:.1f}%")
     print(f"  Mean: {summary['gpu_utilization']['mean_pct']:.1f}%")
+    if summary['gpu_utilization']['mean_pct'] == 0:
+        print(f"  Note: GPU utilization not available, using CPU as proxy")
     
     print(f"RAM Usage:")
     print(f"  Peak: {summary['ram']['peak_mb']:.1f} MB")

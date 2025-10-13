@@ -285,12 +285,14 @@ def calculate_memory_growth_rate(memory_samples: list, timestamps: list) -> floa
     return max(0, slope)  # Return 0 if negative (memory decreasing)
 
 
-def calculate_computational_intensity(gpu_util_pct: float, processing_time: float, audio_duration: float) -> float:
+def calculate_computational_intensity(gpu_util_pct: float, processing_time: float, audio_duration: float, cpu_util_pct: float = 0.0) -> float:
     """
     Calculate Computational Intensity (CI)
     
     CI measures how much computational resource is used relative to real-time.
     CI = (GPU_Utilization% / 100) * (Processing_Time / Audio_Duration)
+    
+    If GPU utilization is not available (0%), falls back to CPU utilization.
     
     A value of 1.0 means using 100% GPU for real-time processing.
     Lower is better - indicates more efficient use of resources.
@@ -299,6 +301,7 @@ def calculate_computational_intensity(gpu_util_pct: float, processing_time: floa
         gpu_util_pct: Average GPU utilization percentage
         processing_time: Total processing time in seconds
         audio_duration: Audio duration in seconds
+        cpu_util_pct: Average CPU utilization percentage (fallback if GPU is 0)
         
     Returns:
         Computational Intensity (dimensionless)
@@ -306,11 +309,14 @@ def calculate_computational_intensity(gpu_util_pct: float, processing_time: floa
     if audio_duration <= 0:
         return float('inf')
     
-    # Normalize GPU utilization to 0-1
-    gpu_factor = gpu_util_pct / 100.0
+    # Use GPU utilization if available, otherwise fall back to CPU
+    util_pct = gpu_util_pct if gpu_util_pct > 0 else cpu_util_pct
+    
+    # Normalize utilization to 0-1
+    util_factor = util_pct / 100.0
     
     # Time factor (>1 means slower than real-time, <1 means faster)
     time_factor = processing_time / audio_duration
     
-    return gpu_factor * time_factor
+    return util_factor * time_factor
 

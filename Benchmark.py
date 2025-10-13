@@ -383,9 +383,19 @@ pipe_growth = calculate_memory_growth_rate(pipe_time_series['gpu_memory_mb'], pi
 baseline_growth = calculate_memory_growth_rate(baseline_time_series['gpu_memory_mb'], baseline_time_series['timestamps'])
 print(f"{'Memory Growth Rate (MB/s)':<30} {pipe_growth:>8.3f} {baseline_growth:>19.3f} {'N/A':>14}")
 
-# Calculate Computational Intensity
-pipe_ci = calculate_computational_intensity(pipe_resource_summary['gpu_utilization']['mean_pct'], adjusted_processing_time, audio_duration)
-baseline_ci = calculate_computational_intensity(baseline_resource_summary['gpu_utilization']['mean_pct'], baseline_processing_time, audio_duration)
+# Calculate Computational Intensity (with CPU fallback)
+pipe_ci = calculate_computational_intensity(
+    pipe_resource_summary['gpu_utilization']['mean_pct'], 
+    adjusted_processing_time, 
+    audio_duration,
+    pipe_resource_summary['cpu']['mean_pct']
+)
+baseline_ci = calculate_computational_intensity(
+    baseline_resource_summary['gpu_utilization']['mean_pct'], 
+    baseline_processing_time, 
+    audio_duration,
+    baseline_resource_summary['cpu']['mean_pct']
+)
 ci_improvement = ((baseline_ci - pipe_ci) / baseline_ci * 100) if baseline_ci > 0 else 0
 print(f"{'Computational Intensity':<30} {pipe_ci:>8.3f} {baseline_ci:>19.3f} {ci_improvement:>14.1f}%")
 
@@ -395,7 +405,8 @@ print("="*80)
 print("\nKey Findings:")
 print("1. Resource Efficiency Index (REI): Lower is better - indicates MB per second of audio")
 print("2. Memory Growth Rate: Shows if memory increases over time (leak detection)")
-print("3. Computational Intensity: Lower is better - efficiency of GPU usage")
+print("3. Computational Intensity: Lower is better - efficiency of resource usage")
+print("   Note: Uses CPU utilization when GPU utilization is not available")
 print("\nwhisperpipe advantages:")
 print("- Consistent memory usage due to dual-buffer architecture")
 print("- Avoids reprocessing, reducing computational load")
