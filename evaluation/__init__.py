@@ -1,3 +1,3 @@
-# Package Initialization
-
-This package is for audio to text conversion.
+"""
+Evaluation package for comparing enhanced pipeStream with baseline Whisper
+"""
