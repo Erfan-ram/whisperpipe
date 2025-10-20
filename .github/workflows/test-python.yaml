@@ -2,14 +2,8 @@ name: CI - Tests on python-version-test Push
 
 on:
   push:
-    branches:
-      - main
-      - develop
     tags:
       - '*p-vtest-*'
-  pull_request:
-    branches:
-      - main
 
 jobs:
   test:
