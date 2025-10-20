@@ -1,42 +1,42 @@
 [project]
 name = "whisperpipe"
-version = "1.0.0"
+version = "0.1.0"
 description = "Real-time speech-to-text streaming with OpenAI Whisper"
 authors = [
-    {name = "Erfan Ramezani", email = "erfanramezany245@gmail.com"}
+{name = "Erfan Ramezani", email = "erfanramezany245@gmail.com"}
 ]
 license = {text = "MIT"}
 readme = "README.md"
 keywords = [
-    "whisper", "openai", "speech-to-text", "stt", "asr",
-    "automatic speech recognition", "real-time", "realtime",
-    "audio", "microphone", "transcription", "streaming", "live transcription"
+"whisper", "openai", "speech-to-text", "stt", "asr",
+"automatic speech recognition", "real-time", "realtime",
+"audio", "microphone", "transcription", "streaming", "live transcription"
 ]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
-    "Intended Audience :: End Users/Desktop",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Operating System :: POSIX :: Linux",
-    "Operating System :: Microsoft :: Windows",
-    "Operating System :: MacOS :: MacOS X",
-    "Environment :: Console",
-    "Topic :: Multimedia :: Sound/Audio :: Speech",
-    "Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
-    "Topic :: Scientific/Engineering :: Artificial Intelligence",
-    "Topic :: Software Development :: Libraries :: Python Modules"
+"Development Status :: 3 - Alpha",
+"Intended Audience :: End Users/Desktop",
+"Intended Audience :: Developers",
+"License :: OSI Approved :: MIT License",
+"Programming Language :: Python :: 3",
+"Programming Language :: Python :: 3.9",
+"Programming Language :: Python :: 3.10",
+"Programming Language :: Python :: 3.11",
+"Programming Language :: Python :: 3.12",
+"Operating System :: POSIX :: Linux",
+"Operating System :: Microsoft :: Windows",
+"Operating System :: MacOS :: MacOS X",
+"Environment :: Console",
+"Topic :: Multimedia :: Sound/Audio :: Speech",
+"Topic :: Multimedia :: Sound/Audio :: Capture/Recording",
+"Topic :: Scientific/Engineering :: Artificial Intelligence",
+"Topic :: Software Development :: Libraries :: Python Modules"
 ]
 requires-python = ">=3.9,<3.13"
 dependencies = [
-    "openai-whisper>=20240930",
-    "pyaudio>=0.2.14",
-    "pynput>=1.7.7",
-    "sounddevice>=0.5.2"
+"openai-whisper>=20240930",
+"pyaudio>=0.2.14",
+"pynput>=1.7.7",
+"sounddevice>=0.5.2"
 ]
 
 [project.urls]
@@ -58,10 +58,10 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-python_files = ["test_*.py", "*_test.py"]
-python_functions = ["test_*"]
+python_files = ["test_.py", "test.py"]
+python_functions = ["test*"]
 addopts = "-v --tb=short"
 filterwarnings = [
-    "ignore::DeprecationWarning",
-    "ignore::PendingDeprecationWarning"
+"ignore::DeprecationWarning",
+"ignore::PendingDeprecationWarning"
 ]
