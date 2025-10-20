@@ -13,7 +13,7 @@ keywords = [
     "audio", "microphone", "transcription", "streaming", "live transcription"
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha"
+    "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
