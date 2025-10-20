@@ -13,7 +13,7 @@ def main():
     Demonstration of the simplified whisperpipe usage with built-in signal handling
     and optional audio device selection.
     """
-    print("🎯 Simple WhisperPipe Usage Example")
+    print("🎯 Simple whisperpipe Usage Example")
     print("=" * 50)
     
     # Create transcriber with the requested API

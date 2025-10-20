@@ -1,0 +1,54 @@
+name: CI - Tests on python-version-test Push
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    tags:
+      - '*p-vtest-*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+      
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: latest
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+      
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+      
+      - name: Install dependencies
+        run: poetry install
+      
+      - name: Run pytest
+        run: poetry run pytest
+      
+      # - name: Run flake8
+      #   run: poetry run flake8 whisperpipe/
+      
+      # - name: Run black format check
+      #   run: poetry run black --check whisperpipe/
