@@ -4,7 +4,19 @@ Real-time speech-to-text streaming with OpenAI Whisper
 
 ## Description
 
-whisperpipe is a powerful, easy-to-use Python package for real-time audio transcription using OpenAI's Whisper model. It provides seamless integration with callback functions for LLM processing and supports pause/resume functionality for interactive applications.
+whisperpipe is a powerful, easy-to-use Python package for real-time, offline audio transcription using OpenAI's Whisper model. It runs locally, making it a free and private solution for continuous speech-to-text applications. It provides seamless integration with callback functions for LLM processing and supports pause/resume functionality for interactive applications.
+
+## Why whisperpipe?
+
+In a world where most ASR (Automatic Speech Recognition) services are cloud-based, whisperpipe offers a refreshing alternative by harnessing the power of OpenAI's Whisper model to run directly on your local machine. This approach provides several key advantages:
+
+- **Complete Privacy**: Since all transcription is done locally, your voice data never leaves your computer. This is crucial for applications that handle sensitive or private conversations.
+- **Zero Cost**: Say goodbye to recurring subscription fees and per-minute charges. whisperpipe is free to use, making it an economical choice for both hobbyists and commercial projects.
+- **No Internet Required**: Whether you're on a plane, in a remote location, or simply have an unstable internet connection, whisperpipe works flawlessly offline.
+- **Real-time Performance**: Designed for continuous, real-time transcription, whisperpipe is ideal for live applications such as voice-controlled assistants, dictation software, and more.
+- **Unleash the Power of Whisper**: By running the Whisper model locally, you have full control over the transcription process, from model selection to performance tuning.
+
+whisperpipe empowers you to build powerful, private, and cost-effective voice applications with ease.
 
 ## Features
 
@@ -129,7 +141,7 @@ transcriber.start_streaming()
 
 ### Constructor Parameters
 
-- `model_name` (str): Whisper model name ("tiny", "base", "small", "medium", "large", "base", "small.en"). Default: "base"
+- `model_name` (str): Whisper model name ("tiny", "base", "small", "medium", "large"). Default: "base"
 - `language` (str): Language code for transcription ("en", "es", "fr", etc.). Default: "en"
 - `finalization_delay` (float): Wait time in seconds before finalizing transcription. Default: 10.0
 - `processing_interval` (float): Interval in seconds between processing cycles. Default: 1.0

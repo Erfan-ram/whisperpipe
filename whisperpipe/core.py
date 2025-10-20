@@ -30,7 +30,7 @@ except (ImportError, OSError) as e:
     print("[INFO] Audio device management will use PyAudio fallback")
 
 class pipeStream:
-    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=True):
+    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=False):
         """
         Initialize the transcriber with OpenAI Whisper model
         
@@ -40,7 +40,7 @@ class pipeStream:
             finalization_delay: Wait time in seconds before finalizing transcription (default 10.0)
             processing_interval: Interval in seconds between processing cycles (default 1.0)
             buffer_duration_seconds: Time window in seconds to hold audio for processing (default 5.0)
-            debug_mode: Enable debug mode for detailed logging (default True)
+            debug_mode: Enable debug mode for detailed logging (default False)
         """
         self._debug_mode_enabled = debug_mode
         self.language = language  # Store language for Whisper transcription
