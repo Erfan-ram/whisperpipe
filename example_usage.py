@@ -270,7 +270,7 @@ def example_manual_control():
 
 def main():
     """Main example runner"""
-    print("🎯 Audio2Text Refactored - Usage Examples")
+    print("🎯 WhisperPipe Refactored - Usage Examples")
     print("🚀 Demonstrating callback and pause/resume functionality\n")
     
     # For demonstration purposes, we'll show the API usage
