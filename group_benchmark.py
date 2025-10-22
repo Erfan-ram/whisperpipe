@@ -590,6 +590,7 @@ def run_benchmark(test_files, max_chunk_duration_seconds=180):
     print("COMPARISON SUMMARY (Aggregated from All Chunks)")
     print("="*80)
 
+    comparison_results = {}
     try:
         print(f"\n{'Metric':<30} {'whisperpipe':<20} {'Baseline':<20} {'Improvement':<20}")
         print("-"*90)
@@ -649,6 +650,15 @@ def run_benchmark(test_files, max_chunk_duration_seconds=180):
         ci_improvement = ((baseline_ci - pipe_ci) / baseline_ci * 100) if baseline_ci > 0 else 0
         print(f"{'Computational Intensity':<30} {pipe_ci:>8.3f} {baseline_ci:>19.3f} {ci_improvement:>14.1f}%")
 
+        comparison_results = {
+            'wer_improvement': wer_improvement,
+            'si_improvement': si_improvement,
+            'latency_reduction': latency_reduction,
+            'time_improvement': time_improvement,
+            'gpu_mem_improvement': gpu_mem_improvement,
+            'ram_improvement': ram_improvement
+        }
+
     except Exception as e:
         print(f"ERROR in comparison calculations: {e}")
         import traceback
@@ -676,6 +686,26 @@ def run_benchmark(test_files, max_chunk_duration_seconds=180):
     print("- Avoids reprocessing, reducing computational load")
     print("- Stable buffer prevents memory growth as audio increases")
     print("- Chunked processing simulates realistic live streaming scenarios")
+
+    return {
+        "whisperpipe": {
+            "metrics": pipe_metrics,
+            "aggregated": pipe_aggregated,
+            "chunks": pipe_chunk_results
+        },
+        "baseline": {
+            "metrics": baseline_metrics,
+            "aggregated": baseline_aggregated,
+            "chunks": baseline_chunk_results
+        },
+        "comparison": comparison_results,
+        "metadata": {
+            "total_audio_duration": total_audio_duration,
+            "chunk_count": len(audio_chunks),
+            "max_chunk_duration": max_chunk_duration_seconds
+        }
+    }
+
 
 
 if __name__ == "__main__":
