@@ -811,7 +811,8 @@ class PlotGenerator:
         
         wp_growth = []
         bl_growth = []
-        time_points = []
+        wp_time_points = []
+        bl_time_points = []
         
         # Extract memory growth data from time series
         for run in run_data:
@@ -827,8 +828,8 @@ class PlotGenerator:
                     if len(memory_data) > 1:
                         # Calculate growth rate (difference between consecutive points)
                         growth_rates = np.diff(memory_data) / np.diff(timestamps)
-                        wp_growth = growth_rates.tolist()
-                        time_points = timestamps[1:].tolist()
+                        wp_growth = growth_rates
+                        wp_time_points = timestamps[1:] - timestamps[0]  # Normalize to start at 0
             
             # Extract baseline memory growth
             if 'baseline' in run and 'time_series' in run['baseline']:
@@ -839,42 +840,41 @@ class PlotGenerator:
                     if len(memory_data) > 1:
                         # Calculate growth rate (difference between consecutive points)
                         growth_rates = np.diff(memory_data) / np.diff(timestamps)
-                        bl_growth = growth_rates.tolist()
+                        bl_growth = growth_rates
+                        bl_time_points = timestamps[1:] - timestamps[0]  # Normalize to start at 0
             
-            if wp_growth and bl_growth:
+            if wp_growth is not None and bl_growth is not None and len(wp_growth) > 0 and len(bl_growth) > 0:
                 break
         
         # Use real data if available, otherwise fall back to mock data
-        if wp_growth and bl_growth and len(wp_growth) > 0 and len(bl_growth) > 0:
-            time_points = np.array(time_points)
+        if wp_growth is not None and bl_growth is not None and len(wp_growth) > 0 and len(bl_growth) > 0:
             wp_growth = np.array(wp_growth)
-            bl_growth = np.array(bl_growth[:len(wp_growth)])  # Ensure same length
-            
-            # Normalize time to start from 0
-            if len(time_points) > 0:
-                time_points = time_points - time_points[0]
+            bl_growth = np.array(bl_growth)
+            wp_time_points = np.array(wp_time_points)
+            bl_time_points = np.array(bl_time_points)
         else:
             # Fallback to mock data with warning
             print("Warning: No time series data found, using mock data for memory growth plot")
-            time_points = np.linspace(0, 100, 50)
-            wp_growth = 0.5 + 0.1 * np.sin(time_points * 0.1) + np.random.normal(0, 0.05, 50)
-            bl_growth = 1.2 + 0.3 * np.sin(time_points * 0.1) + np.random.normal(0, 0.1, 50)
+            wp_time_points = np.linspace(0, 100, 50)
+            bl_time_points = np.linspace(0, 100, 50)
+            wp_growth = 0.5 + 0.1 * np.sin(wp_time_points * 0.1) + np.random.normal(0, 0.05, 50)
+            bl_growth = 1.2 + 0.3 * np.sin(bl_time_points * 0.1) + np.random.normal(0, 0.1, 50)
         
         # Plot growth rates
-        ax.plot(time_points, wp_growth, label='whisperpipe', color=self.colors['whisperpipe'], 
+        ax.plot(wp_time_points, wp_growth, label='whisperpipe', color=self.colors['whisperpipe'], 
                linewidth=2)
-        ax.plot(time_points, bl_growth, label='Baseline', color=self.colors['baseline'], 
+        ax.plot(bl_time_points, bl_growth, label='Baseline', color=self.colors['baseline'], 
                linewidth=2)
         
         # Add linear regression fits
-        z_wp = np.polyfit(time_points, wp_growth, 1)
-        z_bl = np.polyfit(time_points, bl_growth, 1)
+        z_wp = np.polyfit(wp_time_points, wp_growth, 1)
+        z_bl = np.polyfit(bl_time_points, bl_growth, 1)
         p_wp = np.poly1d(z_wp)
         p_bl = np.poly1d(z_bl)
         
-        ax.plot(time_points, p_wp(time_points), '--', color=self.colors['whisperpipe'], 
+        ax.plot(wp_time_points, p_wp(wp_time_points), '--', color=self.colors['whisperpipe'], 
                alpha=0.7, label=f'whisperpipe trend (slope={z_wp[0]:.3f})')
-        ax.plot(time_points, p_bl(time_points), '--', color=self.colors['baseline'], 
+        ax.plot(bl_time_points, p_bl(bl_time_points), '--', color=self.colors['baseline'], 
                alpha=0.7, label=f'Baseline trend (slope={z_bl[0]:.3f})')
         
         # Add leak detection zones

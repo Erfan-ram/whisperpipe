@@ -22,7 +22,7 @@ benchmark:
   
   # Multiple runs for statistical significance
   runs:
-    count: 1  # Number of benchmark runs
+    count: 2  # Number of benchmark runs
     parallel: false  # Run in parallel (requires more memory)
 
 # Statistical Analysis
