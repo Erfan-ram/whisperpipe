@@ -1,0 +1,141 @@
+# Academic Paper Visualization Configuration
+# Default settings for benchmark evaluation and plot generation
+
+# Benchmark Configuration
+benchmark:
+  # Audio data settings
+  audio:
+    data_dir: "test_audio"  # Directory containing audio files
+    file_limit: 8  # Maximum number of files to process
+    max_chunk_duration_seconds: 40  # Maximum duration per chunk
+  
+  # Model settings
+  model:
+    name: "base"  # Whisper model name (tiny, base, small, medium, large)
+    language: "en"  # Language code
+  
+  # Processing settings
+  processing:
+    whisperpipe_increment_seconds: 2.0  # Increment for whisperpipe processing
+    baseline_increment_seconds: 1.0     # Increment for baseline processing
+    realtime_chunk_size: 1024           # Micro-chunk size for real-time simulation
+  
+  # Multiple runs for statistical significance
+  runs:
+    count: 1  # Number of benchmark runs
+    parallel: false  # Run in parallel (requires more memory)
+
+# Statistical Analysis
+statistics:
+  # Confidence level for intervals
+  confidence_level: 0.95
+  
+  # Statistical tests
+  tests:
+    t_test: true
+    wilcoxon: true
+    effect_size: true
+    confidence_intervals: true
+  
+  # Effect size thresholds
+  effect_size_thresholds:
+    small: 0.2
+    medium: 0.5
+    large: 0.8
+
+# Plot Configuration
+plots:
+  # General settings
+  style: "ieee"  # ieee, nature, acl
+  dpi: 300  # Resolution for PNG output
+  format: ["png"]  # Output formats
+  # format: ["png", "pdf", "eps"]  # Output formats
+  
+  # Font settings
+  font:
+    family: "Times New Roman"
+    size: 9  # IEEE standard
+    weight: "normal"
+  
+  # Color scheme
+  colors:
+    primary: ["#1f77b4", "#ff7f0e"]  # Blue, Orange (IEEE standard)
+    accent: ["#2ca02c", "#d62728", "#9467bd", "#8c564b"]  # Green, Red, Purple, Brown
+    background: "#ffffff"
+    grid: "#e0e0e0"
+  
+  # Figure sizes (inches)
+  sizes:
+    single_column: [3.5, 2.5]  # IEEE single column
+    double_column: [7.0, 4.0]  # IEEE double column
+    square: [4.0, 4.0]
+    wide: [6.0, 3.0]
+  
+  # Plot-specific settings
+  bar_charts:
+    show_error_bars: true
+    show_significance: true
+    show_percentages: true
+  
+  time_series:
+    show_confidence_bands: true
+    show_trend_lines: true
+    show_annotations: true
+  
+  distributions:
+    show_kde: true
+    show_quartiles: true
+    show_outliers: true
+
+# Output Configuration
+output:
+  # Base directory for results
+  base_dir: "results"
+  
+  # Subdirectories
+  subdirs:
+    plots: "plots"
+    tables: "tables"
+    reports: "reports"
+    data: "data"
+    notebooks: "notebooks"
+  
+  # File naming
+  naming:
+    timestamp_format: "%Y%m%d_%H%M%S"
+    run_prefix: "run"
+    plot_prefix: "plot"
+    table_prefix: "table"
+
+# Report Configuration
+reports:
+  # HTML report settings
+  html:
+    template: "academic_template.html"
+    include_plots: true
+    include_tables: true
+    include_statistics: true
+  
+  # PDF report settings
+  pdf:
+    page_size: "A4"
+    margins: "1in"
+    include_toc: true
+  
+  # LaTeX settings
+  latex:
+    document_class: "article"
+    packages: ["amsmath", "amsfonts", "graphicx", "booktabs", "array"]
+    table_style: "booktabs"
+
+# System Information
+system:
+  # Hardware info to capture
+  capture_hardware: true
+  capture_software: true
+  capture_environment: true
+  
+  # Git info
+  capture_git: true
+  git_include_uncommitted: false
+
