@@ -74,7 +74,8 @@ class StatisticalAnalyzer:
                 'peak_ram_mb': [],
                 'mean_gpu_util_pct': [],
                 'mean_cpu_util_pct': [],
-                'processing_time': []
+                'processing_time': [],
+                'time_series': []
             },
             'baseline': {
                 'wer': [],
@@ -84,7 +85,8 @@ class StatisticalAnalyzer:
                 'peak_ram_mb': [],
                 'mean_gpu_util_pct': [],
                 'mean_cpu_util_pct': [],
-                'processing_time': []
+                'processing_time': [],
+                'time_series': []
             }
         }
         
@@ -120,6 +122,8 @@ class StatisticalAnalyzer:
                 # Extract processing time
                 if 'total_processing_time' in wp_data:
                     metrics['whisperpipe']['processing_time'].append(wp_data['total_processing_time'])
+                if 'time_series' in wp_data:
+                    metrics['whisperpipe']['time_series'].append(wp_data['time_series'])
             
             # Extract baseline metrics
             if 'baseline' in run:
@@ -148,6 +152,8 @@ class StatisticalAnalyzer:
                 # Extract processing time
                 if 'total_processing_time' in bl_data:
                     metrics['baseline']['processing_time'].append(bl_data['total_processing_time'])
+                if 'time_series' in bl_data:
+                    metrics['baseline']['time_series'].append(bl_data['time_series'])
         
         return metrics
     
@@ -219,6 +225,38 @@ class StatisticalAnalyzer:
             'interpretation': f"{magnitude} effect size"
         }
     
+    def _calculate_memory_growth_rates(self, metrics: Dict) -> Dict:
+        """Calculate memory growth rate from time series data"""
+        growth_rates = {
+            'whisperpipe': [],
+            'baseline': []
+        }
+        from scipy import stats
+
+        # Process whisperpipe time series
+        if 'time_series' in metrics['whisperpipe']:
+            for run_ts in metrics['whisperpipe']['time_series']:
+                if 'gpu_memory_mb' in run_ts and 'timestamps' in run_ts:
+                    memory = np.array(run_ts['gpu_memory_mb'])
+                    timestamps = np.array(run_ts['timestamps'])
+                    if len(memory) > 1 and len(timestamps) > 1:
+                        timestamps = timestamps - timestamps[0]  # Normalize time
+                        slope, _, _, _, _ = stats.linregress(timestamps, memory)
+                        growth_rates['whisperpipe'].append(slope)
+
+        # Process baseline time series
+        if 'time_series' in metrics['baseline']:
+            for run_ts in metrics['baseline']['time_series']:
+                if 'gpu_memory_mb' in run_ts and 'timestamps' in run_ts:
+                    memory = np.array(run_ts['gpu_memory_mb'])
+                    timestamps = np.array(run_ts['timestamps'])
+                    if len(memory) > 1 and len(timestamps) > 1:
+                        timestamps = timestamps - timestamps[0]  # Normalize time
+                        slope, _, _, _, _ = stats.linregress(timestamps, memory)
+                        growth_rates['baseline'].append(slope)
+        
+        return growth_rates
+
     def _perform_t_tests(self, metrics: Dict) -> Dict:
         """Perform t-tests for all metrics"""
         t_tests = {}
@@ -227,7 +265,7 @@ class StatisticalAnalyzer:
             wp_data = metrics['whisperpipe'][metric_name]
             bl_data = metrics['baseline'][metric_name]
             
-            if len(wp_data) < 2 or len(bl_data) < 2:
+            if len(wp_data) < 2 or len(bl_data) < 2 or not isinstance(wp_data[0], (int, float)):
                 continue
             
             # Paired t-test (if same number of samples)
@@ -277,7 +315,7 @@ class StatisticalAnalyzer:
             wp_data = metrics['whisperpipe'][metric_name]
             bl_data = metrics['baseline'][metric_name]
             
-            if len(wp_data) < 2 or len(bl_data) < 2:
+            if len(wp_data) < 2 or len(bl_data) < 2 or not isinstance(wp_data[0], (int, float)):
                 continue
             
             # Use paired test if same length, otherwise independent
@@ -323,7 +361,7 @@ class StatisticalAnalyzer:
             wp_data = metrics['whisperpipe'][metric_name]
             bl_data = metrics['baseline'][metric_name]
             
-            if not wp_data or not bl_data:
+            if not wp_data or not bl_data or not isinstance(wp_data[0], (int, float)):
                 continue
             
             wp_mean = np.mean(wp_data)
@@ -356,19 +394,25 @@ class StatisticalAnalyzer:
         print("Extracting metrics...")
         metrics = self._extract_metrics(results)
         
+        print("Calculating memory growth rates...")
+        memory_growth_rates = self._calculate_memory_growth_rates(metrics)
+        metrics['whisperpipe']['memory_growth_rate_mbs'] = memory_growth_rates['whisperpipe']
+        metrics['baseline']['memory_growth_rate_mbs'] = memory_growth_rates['baseline']
+        
         print("Calculating descriptive statistics...")
         descriptive_stats = {}
         for system in ['whisperpipe', 'baseline']:
             descriptive_stats[system] = {}
             for metric_name, data in metrics[system].items():
-                descriptive_stats[system][metric_name] = self._calculate_descriptive_stats(data)
+                if data and isinstance(data[0], (int, float)):
+                    descriptive_stats[system][metric_name] = self._calculate_descriptive_stats(data)
         
         print("Calculating confidence intervals...")
         confidence_intervals = {}
         for system in ['whisperpipe', 'baseline']:
             confidence_intervals[system] = {}
             for metric_name, data in metrics[system].items():
-                if data:
+                if data and isinstance(data[0], (int, float)):
                     ci_lower, ci_upper = self._calculate_confidence_interval(data)
                     confidence_intervals[system][metric_name] = {
                         'ci_lower': ci_lower,

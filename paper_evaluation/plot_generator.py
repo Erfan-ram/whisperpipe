@@ -1644,46 +1644,46 @@ class PlotGenerator:
         fig, axes = plt.subplots(2, 3, figsize=self.config['plots']['sizes']['double_column'])
         axes = axes.flatten()
         
-        # Extract real data from analysis
-        wp_metrics = analysis.get('whisperpipe', {})
-        bl_metrics = analysis.get('baseline', {})
-        
-        # Get resource summaries
-        wp_resource = wp_metrics.get('resource_summary', {})
-        bl_resource = bl_metrics.get('resource_summary', {})
-        
-        # Extract real metrics
-        wp_peak_gpu = wp_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        bl_peak_gpu = bl_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        
-        wp_gpu_util = wp_resource.get('gpu_utilization', {}).get('mean_pct', 0)
-        bl_gpu_util = bl_resource.get('gpu_utilization', {}).get('mean_pct', 0)
-        
-        wp_ram = wp_resource.get('ram', {}).get('peak_mb', 0)
-        bl_ram = bl_resource.get('ram', {}).get('peak_mb', 0)
-        
-        # Calculate resource efficiency (MB per second of audio)
-        audio_duration = (
-            wp_metrics.get('total_audio_duration')
-            or wp_metrics.get('total_processing_time')
-            or 0
-        )
+        wp_stats = analysis.get('descriptive_statistics', {}).get('whisperpipe', {})
+        bl_stats = analysis.get('descriptive_statistics', {}).get('baseline', {})
+
+        run_data = self._load_run_data()
+        audio_duration = 0
+        if run_data:
+            for run in run_data:
+                if 'error' not in run:
+                    audio_duration = run.get('metadata', {}).get('total_audio_duration', 0)
+                    if audio_duration > 0:
+                        break
         if not audio_duration or audio_duration <= 0:
             audio_duration = 1.0
+            print("Warning: Could not determine audio_duration for plot 18, falling back to 1.0.")
+
+        # Extract real metrics
+        wp_peak_gpu = wp_stats.get('peak_gpu_memory_mb', {}).get('mean', 0)
+        bl_peak_gpu = bl_stats.get('peak_gpu_memory_mb', {}).get('mean', 0)
+        
+        wp_gpu_util = wp_stats.get('mean_gpu_util_pct', {}).get('mean', 0)
+        bl_gpu_util = bl_stats.get('mean_gpu_util_pct', {}).get('mean', 0)
+        
+        wp_ram = wp_stats.get('peak_ram_mb', {}).get('mean', 0)
+        bl_ram = bl_stats.get('peak_ram_mb', {}).get('mean', 0)
+        
+        # Calculate resource efficiency (MB per second of audio)
         wp_rei = wp_peak_gpu / audio_duration
         bl_rei = bl_peak_gpu / audio_duration
         
         # Calculate memory growth rate (simplified)
-        wp_mgr = 0.0  # whisperpipe has stable memory
-        bl_mgr = (bl_peak_gpu - wp_peak_gpu) / audio_duration if audio_duration > 0 else 0
+        wp_mgr = wp_stats.get('memory_growth_rate_mbs', {}).get('mean', 0)
+        bl_mgr = bl_stats.get('memory_growth_rate_mbs', {}).get('mean', 0)
         
         # Calculate computational intensity (GPU utilization / 100)
         wp_ci = wp_gpu_util / 100.0
         bl_ci = bl_gpu_util / 100.0
         
         # Get processing times
-        wp_proc_time = wp_metrics.get('total_processing_time', 0)
-        bl_proc_time = bl_metrics.get('total_processing_time', 0)
+        wp_proc_time = wp_stats.get('processing_time', {}).get('mean', 0)
+        bl_proc_time = bl_stats.get('processing_time', {}).get('mean', 0)
         
         # Calculate improvements (guard all divisions by zero)
         gpu_improvement = ((bl_peak_gpu - wp_peak_gpu) / bl_peak_gpu) * 100 if bl_peak_gpu > 0 else 0
