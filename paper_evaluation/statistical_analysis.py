@@ -94,18 +94,60 @@ class StatisticalAnalyzer:
                 continue
             
             # Extract whisperpipe metrics
-            if 'whisperpipe' in run and 'metrics' in run['whisperpipe']:
-                wp_metrics = run['whisperpipe']['metrics']
-                for key in metrics['whisperpipe']:
-                    if key in wp_metrics:
-                        metrics['whisperpipe'][key].append(wp_metrics[key])
+            if 'whisperpipe' in run:
+                wp_data = run['whisperpipe']
+                wp_metrics = wp_data.get('metrics', {})
+                wp_resource = wp_data.get('resource_summary', {})
+                
+                # Extract performance metrics
+                if 'wer' in wp_metrics:
+                    metrics['whisperpipe']['wer'].append(wp_metrics['wer'])
+                if 'stability_index' in wp_metrics:
+                    metrics['whisperpipe']['stability_index'].append(wp_metrics['stability_index'])
+                if 'avg_latency_ms' in wp_metrics:
+                    metrics['whisperpipe']['avg_latency_ms'].append(wp_metrics['avg_latency_ms'])
+                
+                # Extract resource metrics
+                if 'gpu_memory' in wp_resource and 'peak_mb' in wp_resource['gpu_memory']:
+                    metrics['whisperpipe']['peak_gpu_memory_mb'].append(wp_resource['gpu_memory']['peak_mb'])
+                if 'ram' in wp_resource and 'peak_mb' in wp_resource['ram']:
+                    metrics['whisperpipe']['peak_ram_mb'].append(wp_resource['ram']['peak_mb'])
+                if 'gpu_utilization' in wp_resource and 'mean_pct' in wp_resource['gpu_utilization']:
+                    metrics['whisperpipe']['mean_gpu_util_pct'].append(wp_resource['gpu_utilization']['mean_pct'])
+                if 'cpu' in wp_resource and 'mean_pct' in wp_resource['cpu']:
+                    metrics['whisperpipe']['mean_cpu_util_pct'].append(wp_resource['cpu']['mean_pct'])
+                
+                # Extract processing time
+                if 'total_processing_time' in wp_data:
+                    metrics['whisperpipe']['processing_time'].append(wp_data['total_processing_time'])
             
             # Extract baseline metrics
-            if 'baseline' in run and 'metrics' in run['baseline']:
-                bl_metrics = run['baseline']['metrics']
-                for key in metrics['baseline']:
-                    if key in bl_metrics:
-                        metrics['baseline'][key].append(bl_metrics[key])
+            if 'baseline' in run:
+                bl_data = run['baseline']
+                bl_metrics = bl_data.get('metrics', {})
+                bl_resource = bl_data.get('resource_summary', {})
+                
+                # Extract performance metrics
+                if 'wer' in bl_metrics:
+                    metrics['baseline']['wer'].append(bl_metrics['wer'])
+                if 'stability_index' in bl_metrics:
+                    metrics['baseline']['stability_index'].append(bl_metrics['stability_index'])
+                if 'avg_latency_ms' in bl_metrics:
+                    metrics['baseline']['avg_latency_ms'].append(bl_metrics['avg_latency_ms'])
+                
+                # Extract resource metrics
+                if 'gpu_memory' in bl_resource and 'peak_mb' in bl_resource['gpu_memory']:
+                    metrics['baseline']['peak_gpu_memory_mb'].append(bl_resource['gpu_memory']['peak_mb'])
+                if 'ram' in bl_resource and 'peak_mb' in bl_resource['ram']:
+                    metrics['baseline']['peak_ram_mb'].append(bl_resource['ram']['peak_mb'])
+                if 'gpu_utilization' in bl_resource and 'mean_pct' in bl_resource['gpu_utilization']:
+                    metrics['baseline']['mean_gpu_util_pct'].append(bl_resource['gpu_utilization']['mean_pct'])
+                if 'cpu' in bl_resource and 'mean_pct' in bl_resource['cpu']:
+                    metrics['baseline']['mean_cpu_util_pct'].append(bl_resource['cpu']['mean_pct'])
+                
+                # Extract processing time
+                if 'total_processing_time' in bl_data:
+                    metrics['baseline']['processing_time'].append(bl_data['total_processing_time'])
         
         return metrics
     

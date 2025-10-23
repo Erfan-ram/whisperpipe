@@ -171,18 +171,23 @@ class BenchmarkRunner:
                 raise ValueError("No test files found")
             
             # Run benchmark with modified group_benchmark
-            results = self._run_modified_benchmark(test_files)
+            benchmark_results = self._run_modified_benchmark(test_files)
+            
+            if not benchmark_results:
+                raise ValueError("Benchmark returned no results")
             
             execution_time = time.time() - start_time
-            results['execution_time'] = execution_time
-            results['run_number'] = run_number
-            results['timestamp'] = datetime.now().isoformat()
+            
+            # Structure the results properly for statistical analysis
+            structured_results = self._structure_benchmark_results(benchmark_results, run_number, execution_time)
             
             print(f"Benchmark {run_number + 1} completed in {execution_time:.2f}s")
-            return results
+            return structured_results
             
         except Exception as e:
             print(f"Error in benchmark {run_number + 1}: {e}")
+            import traceback
+            traceback.print_exc()
             return {
                 'error': str(e),
                 'run_number': run_number,
@@ -200,6 +205,57 @@ class BenchmarkRunner:
         )
         
         return results
+    
+    def _structure_benchmark_results(self, benchmark_results: Dict, run_number: int, execution_time: float) -> Dict:
+        """Structure benchmark results for statistical analysis and plotting"""
+        
+        # Extract whisperpipe data
+        wp_data = benchmark_results.get('whisperpipe', {})
+        wp_metrics = wp_data.get('metrics', {})
+        wp_aggregated = wp_data.get('aggregated', {})
+        wp_chunks = wp_data.get('chunks', [])
+        
+        # Extract baseline data
+        bl_data = benchmark_results.get('baseline', {})
+        bl_metrics = bl_data.get('metrics', {})
+        bl_aggregated = bl_data.get('aggregated', {})
+        bl_chunks = bl_data.get('chunks', [])
+        
+        # Extract metadata
+        metadata = benchmark_results.get('metadata', {})
+        comparison = benchmark_results.get('comparison', {})
+        
+        # Structure for statistical analysis
+        structured = {
+            'whisperpipe': {
+                'metrics': wp_metrics,
+                'resource_summary': wp_aggregated.get('resource_summary', {}),
+                'time_series': wp_aggregated.get('time_series', {}),
+                'chunks': wp_chunks,
+                'total_processing_time': wp_aggregated.get('total_processing_time', 0),
+                'chunk_count': wp_aggregated.get('chunk_count', 0)
+            },
+            'baseline': {
+                'metrics': bl_metrics,
+                'resource_summary': bl_aggregated.get('resource_summary', {}),
+                'time_series': bl_aggregated.get('time_series', {}),
+                'chunks': bl_chunks,
+                'total_processing_time': bl_aggregated.get('total_processing_time', 0),
+                'chunk_count': bl_aggregated.get('chunk_count', 0)
+            },
+            'comparison': comparison,
+            'metadata': {
+                'total_audio_duration': metadata.get('total_audio_duration', 0),
+                'chunk_count': metadata.get('chunk_count', 0),
+                'max_chunk_duration': metadata.get('max_chunk_duration', 0),
+                'audio_files': len(benchmark_results.get('test_files', [])),
+                'run_number': run_number,
+                'execution_time': execution_time,
+                'timestamp': datetime.now().isoformat()
+            }
+        }
+        
+        return structured
     
     def run_benchmarks(self) -> Dict:
         """Run multiple benchmark executions for statistical significance"""
