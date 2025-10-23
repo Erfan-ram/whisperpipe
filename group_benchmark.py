@@ -425,20 +425,40 @@ def aggregate_results(chunk_results, full_reference):
     aggregated_resources['cpu']['std_pct'] = safe_std(cpu_values, 'mean_pct')
     aggregated_resources['cpu']['min_pct'] = safe_min(cpu_values, 'min_pct')
     
-    # Combine time series data
+    # Combine time series data with enhanced structure
     combined_time_series = {
+        'timestamps': [],
+        'gpu_memory': {'samples': [], 'unit': 'MB'},
+        'gpu_utilization': {'samples': [], 'unit': '%'},
+        'cpu': {'samples': [], 'unit': '%'},
+        'ram': {'samples': [], 'unit': 'MB'},
+        # Legacy format for backward compatibility
         'gpu_memory_mb': [],
-        'timestamps': []
+        'gpu_util_pct': [],
+        'cpu_pct': [],
+        'ram_mb': []
     }
     
     for result in chunk_results:
         ts = result.get('time_series', {})
-        if 'gpu_memory_mb' in ts and 'timestamps' in ts:
-            gpu_mem_data = ts['gpu_memory_mb']
+        if 'timestamps' in ts:
             timestamp_data = ts['timestamps']
-            if isinstance(gpu_mem_data, list) and isinstance(timestamp_data, list):
-                combined_time_series['gpu_memory_mb'].extend(gpu_mem_data)
+            if isinstance(timestamp_data, list):
                 combined_time_series['timestamps'].extend(timestamp_data)
+                
+                # Handle structured format
+                for metric in ['gpu_memory', 'gpu_utilization', 'cpu', 'ram']:
+                    if metric in ts and 'samples' in ts[metric]:
+                        samples = ts[metric]['samples']
+                        if isinstance(samples, list):
+                            combined_time_series[metric]['samples'].extend(samples)
+                
+                # Handle legacy format
+                for legacy_key in ['gpu_memory_mb', 'gpu_util_pct', 'cpu_pct', 'ram_mb']:
+                    if legacy_key in ts:
+                        legacy_data = ts[legacy_key]
+                        if isinstance(legacy_data, list):
+                            combined_time_series[legacy_key].extend(legacy_data)
     
     return {
         'final_text': combined_final_text,

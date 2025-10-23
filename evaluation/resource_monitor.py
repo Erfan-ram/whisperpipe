@@ -161,13 +161,30 @@ class ResourceMonitor:
     
     def get_time_series(self) -> Dict:
         """
-        Get time series data for plotting
+        Get time series data for plotting in structured format
         
         Returns:
-            Dictionary with time series arrays
+            Dictionary with structured time series data for plots 10-18
         """
         return {
             'timestamps': self.timestamps.copy(),
+            'gpu_memory': {
+                'samples': self.gpu_memory_used.copy(),
+                'unit': 'MB'
+            },
+            'gpu_utilization': {
+                'samples': self.gpu_utilization.copy(),
+                'unit': '%'
+            },
+            'cpu': {
+                'samples': self.cpu_percent.copy(),
+                'unit': '%'
+            },
+            'ram': {
+                'samples': self.ram_used.copy(),
+                'unit': 'MB'
+            },
+            # Legacy format for backward compatibility
             'gpu_memory_mb': self.gpu_memory_used.copy(),
             'gpu_util_pct': self.gpu_utilization.copy(),
             'cpu_pct': self.cpu_percent.copy(),
