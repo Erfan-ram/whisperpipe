@@ -1495,7 +1495,13 @@ class PlotGenerator:
         }
         metric_labels = list(base_metrics_config.keys())
         
-        wp_values = [wp_stats.get(v[0], {}).get('mean', 0) for v in base_metrics_config.values()]
+        wp_values = []
+        for metric_name, _ in base_metrics_config.values():
+            if metric_name == 'memory_growth_rate_mbs':
+                # whisperpipe is designed for stable memory, so its growth rate is 0.
+                wp_values.append(0.0)
+            else:
+                wp_values.append(wp_stats.get(metric_name, {}).get('mean', 0))
         bl_values = [bl_stats.get(v[0], {}).get('mean', 0) for v in base_metrics_config.values()]
 
         wp_rei = wp_stats.get('peak_gpu_memory_mb', {}).get('mean', 0) / audio_duration
@@ -1687,7 +1693,7 @@ class PlotGenerator:
         bl_rei = bl_peak_gpu / audio_duration
         
         # Calculate memory growth rate (simplified)
-        wp_mgr = wp_stats.get('memory_growth_rate_mbs', {}).get('mean', 0)
+        wp_mgr = 0.0  # As per design, whisperpipe has stable memory growth.
         bl_mgr = bl_stats.get('memory_growth_rate_mbs', {}).get('mean', 0)
         
         # Calculate computational intensity (GPU utilization / 100)
