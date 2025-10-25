@@ -1475,96 +1475,92 @@ class PlotGenerator:
     
     def plot_16_multimetric_improvement_heatmap(self, analysis: Dict) -> str:
         """Plot 16: Multi-Metric Improvement Heatmap"""
+        # 1. Setup
         self._setup_ieee_style()
         fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['double_column'])
-        
-        # Step 1: Extract real data from the analysis dictionary
+
+        # 2. Dynamic Data Extraction
         stats = analysis.get('descriptive_statistics', {})
         wp_stats = stats.get('whisperpipe', {})
         bl_stats = stats.get('baseline', {})
-        
+
         run_data = self._load_run_data()
-        audio_duration = 0
-        if run_data:
-            for run in run_data:
-                if 'error' not in run:
-                    audio_duration = run.get('metadata', {}).get('total_audio_duration', 0)
-                    if audio_duration > 0: break
-        if audio_duration <= 0: audio_duration = 1.0 # Avoid division by zero
+        audio_duration = next((run.get('metadata', {}).get('total_audio_duration', 0) for run in run_data if 'error' not in run and run.get('metadata', {}).get('total_audio_duration', 0) > 0), 1.0)
 
-        # Step 2: Calculate all required metrics from real data
-        metrics_def = {
-            'Peak GPU Memory (MB)': ('peak_gpu_memory_mb', 'mean'),
-            'Peak RAM (MB)': ('peak_ram_mb', 'mean'),
-            'GPU Utilization (%)': ('mean_gpu_util_pct', 'mean'),
-            'Memory Growth Rate (MB/s)': ('memory_growth_rate_mbs', 'mean'),
+        base_metrics_config = {
+            'Peak GPU Memory (MB)': ('peak_gpu_memory_mb', True),
+            'Peak RAM (MB)': ('peak_ram_mb', True),
+            'GPU Utilization (%)': ('mean_gpu_util_pct', False),
+            'Memory Growth Rate (MB/s)': ('memory_growth_rate_mbs', True),
         }
+        metric_labels = list(base_metrics_config.keys())
         
-        whisperpipe_values = [wp_stats.get(key, {}).get(stat, 0) for key, stat in metrics_def.items()]
-        baseline_values = [bl_stats.get(key, {}).get(stat, 0) for key, stat in metrics_def.items()]
+        wp_values = [wp_stats.get(v[0], {}).get('mean', 0) for v in base_metrics_config.values()]
+        bl_values = [bl_stats.get(v[0], {}).get('mean', 0) for v in base_metrics_config.values()]
 
-        # Calculate REI
         wp_rei = wp_stats.get('peak_gpu_memory_mb', {}).get('mean', 0) / audio_duration
         bl_rei = bl_stats.get('peak_gpu_memory_mb', {}).get('mean', 0) / audio_duration
-        
-        # Calculate CI
-        wp_proc_time = wp_stats.get('processing_time', {}).get('mean', 40.0)
-        bl_proc_time = bl_stats.get('processing_time', {}).get('mean', 30.0)
-        wp_ci_val = (wp_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (wp_proc_time / audio_duration)
-        bl_ci_val = (bl_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (bl_proc_time / audio_duration)
+        wp_proc_time = wp_stats.get('processing_time', {}).get('mean', 0)
+        bl_proc_time = bl_stats.get('processing_time', {}).get('mean', 0)
+        wp_ci = (wp_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (wp_proc_time / audio_duration) if audio_duration > 0 else 0
+        bl_ci = (bl_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (bl_proc_time / audio_duration) if audio_duration > 0 else 0
 
-        # Append calculated metrics
-        metrics_def['Resource Efficiency (MB/s)'] = None
-        metrics_def['Computational Intensity'] = None
-        whisperpipe_values.extend([wp_rei, wp_ci_val])
-        baseline_values.extend([bl_rei, bl_ci_val])
+        metric_labels.extend(['Resource Efficiency (MB/s)', 'Computational Intensity'])
+        wp_values.extend([wp_rei, wp_ci])
+        bl_values.extend([bl_rei, bl_ci])
         
-        # Calculate improvements
-        improvements = [((bl - wp) / bl) * 100 if bl > 0 else 0 for wp, bl in zip(whisperpipe_values, baseline_values)]
-        
-        # Step 3: Create heatmap
-        data_matrix = np.array([whisperpipe_values, baseline_values, improvements]).T
-        metric_labels = list(metrics_def.keys())
-        
-        # Normalize scores for coloring (higher is better)
-        scores = np.zeros_like(data_matrix[:, :2])
+        lower_is_better_rules = [v[1] for v in base_metrics_config.values()] + [True, True]
+
+        improvement_values = []
         for i in range(len(metric_labels)):
-            lower_is_better = i != 2 # For all metrics here except util, lower is better. Assuming moderate util is not the goal.
-            row = data_matrix[i, :2]
-            if np.all(row == 0): continue
-            
-            if lower_is_better:
-                scores[i, :] = 1 - (row - row.min()) / (row.max() - row.min()) if row.max() != row.min() else 0.5
+            wp, bl, lower_is_better = wp_values[i], bl_values[i], lower_is_better_rules[i]
+            imp = (((bl - wp) / bl) * 100) if lower_is_better else (((wp - bl) / bl) * 100)
+            improvement_values.append(imp if bl != 0 else 0.0)
+
+        data_matrix = np.array([wp_values, bl_values, improvement_values]).T
+
+        # 3. Data Normalization for Coloring
+        normalized_matrix = np.zeros_like(data_matrix)
+        for i in range(len(metric_labels)):
+            wp, bl, lower_is_better = data_matrix[i, 0], data_matrix[i, 1], lower_is_better_rules[i]
+            if wp == bl:
+                normalized_matrix[i, 0], normalized_matrix[i, 1] = 0.5, 0.5
             else:
-                scores[i, :] = (row - row.min()) / (row.max() - row.min()) if row.max() != row.min() else 0.5
+                is_wp_better = (wp < bl) if lower_is_better else (wp > bl)
+                normalized_matrix[i, 0], normalized_matrix[i, 1] = (1.0, 0.0) if is_wp_better else (0.0, 1.0)
 
-        # Create heatmap from scores, but annotate with real values
-        im = ax.imshow(scores, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+        imp_col = data_matrix[:, 2]
+        min_imp, max_imp = imp_col.min(), imp_col.max()
+        normalized_matrix[:, 2] = 0.5 if max_imp == min_imp else (imp_col - min_imp) / (max_imp - min_imp)
 
-        # Set ticks and labels
-        ax.set_xticks(range(2))
-        ax.set_xticklabels(['whisperpipe', 'Baseline'])
+        # 4. Rendering the Heatmap
+        im = ax.imshow(normalized_matrix, cmap='RdYlGn', vmin=0, vmax=1, aspect='auto')
+
+        # 5. Annotations, Labels, and Legend
+        ax.set_xticks([0, 1, 2])
+        ax.set_xticklabels(['whisperpipe', 'Baseline', 'Improvement %'])
         ax.set_yticks(range(len(metric_labels)))
-        ax.set_yticklabels(metric_labels, fontsize=8)
-        
-        ax.tick_params(axis='x', rotation=45)
+        ax.set_yticklabels(metric_labels)
+        plt.setp(ax.get_xticklabels(), rotation=30, ha="right", rotation_mode="anchor")
 
-        # Add text annotations for real values and improvements
         for i in range(len(metric_labels)):
-            for j in range(2):
-                ax.text(j, i, f'{data_matrix[i, j]:.2f}', ha='center', va='center', 
-                       color='black', fontweight='bold', fontsize=8)
-        # Add a column for improvement text
-        ax.axvline(1.5, color='black', lw=2)
-        for i, val in enumerate(improvements):
-            ax.text(2, i, f'{val:+.1f}%', ha='left', va='center',
-            color='darkgreen' if val > 0 else 'darkred', fontweight='bold', fontsize=8)
+            for j in range(3):
+                score, value = normalized_matrix[i, j], data_matrix[i, j]
+                text = f'{value:+.1f}%' if j == 2 else f'{value:.1f}'
+                text_color = 'white' if abs(score - 0.5) > 0.35 else 'black'
+                ax.text(j, i, text, ha='center', va='center', color=text_color, fontweight='bold', fontsize=8)
 
+        ax.set_title('Multi-Metric Performance Comparison Heatmap', fontweight='bold', pad=20)
+        fig.text(0.5, 0.95, '(Green = Better Performance)', ha='center', va='center', style='italic', fontsize=9)
 
-        ax.set_title('Multi-Metric Performance Comparison')
-        fig.tight_layout()
+        cbar = fig.colorbar(im, ax=ax, pad=0.02, aspect=30)
+        cbar.set_label('Performance Score (1.0 = Best, 0.0 = Worst)', rotation=270, labelpad=20)
+        cbar.set_ticks([0, 1])
+        cbar.set_ticklabels(['Worst', 'Best'])
+
+        # 6. Saving and Output
+        fig.tight_layout(rect=[0, 0, 0.95, 0.95])
         
-        # Save plot
         filename = self.plots_dir / 'plot_16_multimetric_improvement_heatmap'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
