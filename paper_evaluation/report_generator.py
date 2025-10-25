@@ -358,7 +358,11 @@ class ReportGenerator:
             specs.append("")
             specs.append(f"- **CPU**: {sys_info.get('processor', 'Unknown')}")
             specs.append(f"- **CPU Cores**: {sys_info.get('cpu_count', 'Unknown')}")
-            specs.append(f"- **Memory**: {sys_info.get('memory_total_gb', 'Unknown'):.1f} GB")
+            mem_gb = sys_info.get('memory_total_gb')
+            if isinstance(mem_gb, (int, float)):
+                specs.append(f"- **Memory**: {mem_gb:.1f} GB")
+            else:
+                specs.append(f"- **Memory**: {mem_gb or 'Unknown'}")
             specs.append(f"- **Operating System**: {sys_info.get('system', 'Unknown')} {sys_info.get('release', '')}")
             specs.append("")
         
@@ -366,17 +370,18 @@ class ReportGenerator:
             sw_info = system_info['software']
             specs.append("## Software")
             specs.append("")
-            specs.append(f"- **Python**: {sys_info.get('python_version', 'Unknown')}")
+            py_ver = system_info.get('platform', {}).get('python_version', 'Unknown')
+            specs.append(f"- **Python**: {py_ver}")
             specs.append(f"- **PyTorch**: {sw_info.get('torch_version', 'Unknown')}")
             specs.append(f"- **CUDA Available**: {sw_info.get('cuda_available', 'Unknown')}")
             if sw_info.get('cuda_available'):
                 specs.append(f"- **CUDA Version**: {sw_info.get('cuda_version', 'Unknown')}")
             specs.append("")
         
-        if 'gpu' in system_info:
+        if 'gpu' in system_info.get('system', {}):
             specs.append("## GPU Information")
             specs.append("")
-            for i, gpu in enumerate(system_info['gpu']):
+            for i, gpu in enumerate(system_info['system']['gpu']):
                 specs.append(f"**GPU {i}:**")
                 specs.append(f"- Name: {gpu.get('name', 'Unknown')}")
                 specs.append(f"- Memory: {gpu.get('memory_total_mb', 0):.0f} MB")

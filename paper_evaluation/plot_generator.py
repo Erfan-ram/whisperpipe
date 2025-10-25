@@ -1393,75 +1393,76 @@ class PlotGenerator:
         return str(filename)
     
     def plot_15_rei_comparison_bars(self, analysis: Dict) -> str:
-        """Plot 15: Resource Efficiency Index (REI) Comparison (Grouped Bars)"""
+        """Plot 15: Resource Efficiency Index (REI) Comparison"""
         self._setup_ieee_style()
-        
         fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['single_column'])
-        
-        # Extract REI data from analysis
-        wp_metrics = analysis.get('whisperpipe', {})
-        bl_metrics = analysis.get('baseline', {})
-        
-        # Get resource summaries
-        wp_resource = wp_metrics.get('resource_summary', {})
-        bl_resource = bl_metrics.get('resource_summary', {})
-        
-        # Get peak GPU memory and processing time
-        wp_peak_gpu = wp_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        bl_peak_gpu = bl_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        
-        # Use total audio duration if available; fallback to processing time; guard zeros
-        audio_duration = (
-            wp_metrics.get('total_audio_duration')
-            or wp_metrics.get('total_processing_time')
-            or 0
-        )
-        if not audio_duration or audio_duration <= 0:
-            audio_duration = 1.0
-        
-        # Calculate REI (Resource Efficiency Index)
-        wp_rei_val = wp_peak_gpu / audio_duration
-        bl_rei_val = bl_peak_gpu / audio_duration
-        
-        # Calculate confidence intervals (mock for now)
-        wp_ci = wp_rei_val * 0.05  # 5% error
-        bl_ci = bl_rei_val * 0.05
-        
-        # Create grouped bar chart
-        x = np.arange(1)
-        width = 0.35
-        
-        bars1 = ax.bar(x - width/2, wp_rei_val, width, yerr=wp_ci, 
-                      color=self.colors['whisperpipe'], alpha=0.8, 
-                      label='whisperpipe', capsize=5)
-        bars2 = ax.bar(x + width/2, bl_rei_val, width, yerr=bl_ci, 
-                      color=self.colors['baseline'], alpha=0.8, 
-                      label='Baseline', capsize=5)
-        
-        # Add value labels on bars
-        ax.text(x[0] - width/2, wp_rei_val + wp_ci + 0.2, f'{wp_rei_val:.2f}', 
-               ha='center', va='bottom', fontweight='bold')
-        ax.text(x[0] + width/2, bl_rei_val + bl_ci + 0.2, f'{bl_rei_val:.2f}', 
-               ha='center', va='bottom', fontweight='bold')
-        
-        # Add improvement percentage (guard division by zero)
-        improvement = ((bl_rei_val - wp_rei_val) / bl_rei_val) * 100 if bl_rei_val > 0 else 0.0
-        ax.text(0.5, max(wp_rei_val, bl_rei_val) * 0.7, f'{improvement:.1f}% improvement', 
-               ha='center', va='center', fontsize=12, fontweight='bold', 
-               bbox=dict(boxstyle='round,pad=0.3', facecolor='lightgreen', alpha=0.7))
 
-        # Ensure bars are visible even if values are zero
-        ymax = max(wp_rei_val, bl_rei_val)
-        ax.set_ylim(0, (ymax * 1.3) if ymax > 0 else 1)
+        # Step 1: Calculate REI for each run from raw data for statistical accuracy
+        run_data = self._load_run_data()
+        wp_rei_runs, bl_rei_runs = [], []
+
+        for run in run_data:
+            if 'error' in run: continue
+            audio_duration = run.get('metadata', {}).get('total_audio_duration')
+            if not audio_duration or audio_duration <= 0: continue
+
+            if 'whisperpipe' in run:
+                wp_res = run['whisperpipe'].get('resource_summary', {})
+                wp_peak_gpu = wp_res.get('gpu_memory', {}).get('peak_mb', 0)
+                wp_rei_runs.append(wp_peak_gpu / audio_duration)
+
+            if 'baseline' in run:
+                bl_res = run['baseline'].get('resource_summary', {})
+                bl_peak_gpu = bl_res.get('gpu_memory', {}).get('peak_mb', 0)
+                bl_rei_runs.append(bl_peak_gpu / audio_duration)
+
+        if not wp_rei_runs or not bl_rei_runs:
+            print("Warning: Could not compute REI values for plot 15. Generating empty plot.")
+            ax.text(0.5, 0.5, "Data not available for REI plot", ha='center', va='center', style='italic')
+            ax.set_title("Resource Efficiency Index (REI) Comparison")
+            filename = self.plots_dir / 'plot_15_rei_comparison_bars'
+            plt.savefig(f"{filename}.png", bbox_inches='tight')
+            plt.close()
+            return str(filename)
+
+        # Step 2: Calculate mean and standard deviation for accurate error bars
+        wp_rei_mean, wp_rei_std = np.mean(wp_rei_runs), np.std(wp_rei_runs)
+        bl_rei_mean, bl_rei_std = np.mean(bl_rei_runs), np.std(bl_rei_runs)
+
+        # Step 3: Create a clean, academic-style bar chart
+        systems = ['whisperpipe', 'Baseline']
+        means = [wp_rei_mean, bl_rei_mean]
+        stds = [wp_rei_std, bl_rei_std]
+        colors = [self.colors['whisperpipe'], self.colors['baseline']]
+
+        bars = ax.bar(systems, means, yerr=stds, color=colors, alpha=0.8,
+                      capsize=4, edgecolor='black', linewidth=0.7)
+
+        # Step 4: Enhance aesthetics and labeling
+        ax.set_ylabel('Resource Efficiency Index (MB/s)\n(Lower is Better)')
+        ax.set_title('Comparative Analysis of Resource Efficiency')
+        ax.grid(True, which='major', axis='y', linestyle='--', alpha=0.5)
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
         
-        ax.set_xlabel('System')
-        ax.set_ylabel('Resource Efficiency Index (MB/s)')
-        ax.set_title('Resource Efficiency Index Comparison\n(Peak Memory per Second of Audio)')
-        ax.set_xticks(x)
-        ax.set_xticklabels(['REI Comparison'])
-        ax.legend(frameon=True, fancybox=True, shadow=True)
-        ax.grid(True, alpha=0.3, axis='y')
-        
+        ax.bar_label(bars, fmt='%.2f', padding=3, fontsize=8, fontweight='bold')
+
+        # Add a subtle, professional annotation for the improvement
+        improvement = ((bl_rei_mean - wp_rei_mean) / bl_rei_mean) * 100 if bl_rei_mean > 0 else 0.0
+        if improvement != 0:
+            y_max = ax.get_ylim()[1]
+            y_pos = y_max * 0.9
+            
+            # Draw a horizontal line and ticks for context
+            ax.plot([0, 1], [y_pos, y_pos], color='black', lw=0.8)
+            ax.plot([0, 0], [means[0] + stds[0], y_pos], color='black', lw=0.8, ls=':')
+            ax.plot([1, 1], [means[1] + stds[1], y_pos], color='black', lw=0.8, ls=':')
+
+            ax.text(0.5, y_pos + (y_max * 0.02), f'Improvement: {improvement:+.1f}%',
+                    ha='center', va='bottom', fontsize=9, fontweight='bold',
+                    color='darkgreen' if improvement > 0 else 'darkred')
+
+        ax.set_ylim(top=ax.get_ylim()[1] * 1.15) # Add space for annotations
         plt.tight_layout()
         
         # Save plot
@@ -1475,70 +1476,93 @@ class PlotGenerator:
     def plot_16_multimetric_improvement_heatmap(self, analysis: Dict) -> str:
         """Plot 16: Multi-Metric Improvement Heatmap"""
         self._setup_ieee_style()
-        
         fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['double_column'])
         
-        # Define metrics and their values from sample data
-        metrics = [
-            'Peak GPU Memory (MB)',
-            'Peak RAM (MB)', 
-            'GPU Utilization (%)',
-            'Resource Efficiency (MB/s)',
-            'Memory Growth Rate (MB/s)',
-            'Computational Intensity'
-        ]
+        # Step 1: Extract real data from the analysis dictionary
+        stats = analysis.get('descriptive_statistics', {})
+        wp_stats = stats.get('whisperpipe', {})
+        bl_stats = stats.get('baseline', {})
         
-        # Values from sample_group-benchmark.txt
-        whisperpipe_values = [335.9, 1449.1, 17.4, 8.32, 0.000, 0.174]
-        baseline_values = [614.7, 1458.9, 86.6, 15.22, 0.257, 0.658]
-        improvements = [45.3, 0.7, 69.3, 45.3, 100.0, 73.6]  # % improvements
+        run_data = self._load_run_data()
+        audio_duration = 0
+        if run_data:
+            for run in run_data:
+                if 'error' not in run:
+                    audio_duration = run.get('metadata', {}).get('total_audio_duration', 0)
+                    if audio_duration > 0: break
+        if audio_duration <= 0: audio_duration = 1.0 # Avoid division by zero
+
+        # Step 2: Calculate all required metrics from real data
+        metrics_def = {
+            'Peak GPU Memory (MB)': ('peak_gpu_memory_mb', 'mean'),
+            'Peak RAM (MB)': ('peak_ram_mb', 'mean'),
+            'GPU Utilization (%)': ('mean_gpu_util_pct', 'mean'),
+            'Memory Growth Rate (MB/s)': ('memory_growth_rate_mbs', 'mean'),
+        }
         
-        # Create data matrix for heatmap
-        data_matrix = np.array([
-            whisperpipe_values,
-            baseline_values, 
-            improvements
-        ]).T
+        whisperpipe_values = [wp_stats.get(key, {}).get(stat, 0) for key, stat in metrics_def.items()]
+        baseline_values = [bl_stats.get(key, {}).get(stat, 0) for key, stat in metrics_def.items()]
+
+        # Calculate REI
+        wp_rei = wp_stats.get('peak_gpu_memory_mb', {}).get('mean', 0) / audio_duration
+        bl_rei = bl_stats.get('peak_gpu_memory_mb', {}).get('mean', 0) / audio_duration
         
-        # Normalize data for better heatmap visualization
-        normalized_data = np.zeros_like(data_matrix)
-        for i in range(len(metrics)):
-            # Normalize each metric separately
-            col_data = data_matrix[i, :]
-            if i in [0, 1, 3]:  # Memory metrics (lower is better)
-                normalized_data[i, :] = 1 - (col_data - col_data.min()) / (col_data.max() - col_data.min())
-            else:  # Other metrics (lower is better)
-                normalized_data[i, :] = 1 - (col_data - col_data.min()) / (col_data.max() - col_data.min())
+        # Calculate CI
+        wp_proc_time = wp_stats.get('processing_time', {}).get('mean', 40.0)
+        bl_proc_time = bl_stats.get('processing_time', {}).get('mean', 30.0)
+        wp_ci_val = (wp_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (wp_proc_time / audio_duration)
+        bl_ci_val = (bl_stats.get('mean_gpu_util_pct', {}).get('mean', 0) / 100.0) * (bl_proc_time / audio_duration)
+
+        # Append calculated metrics
+        metrics_def['Resource Efficiency (MB/s)'] = None
+        metrics_def['Computational Intensity'] = None
+        whisperpipe_values.extend([wp_rei, wp_ci_val])
+        baseline_values.extend([bl_rei, bl_ci_val])
         
-        # Create heatmap
-        im = ax.imshow(normalized_data, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+        # Calculate improvements
+        improvements = [((bl - wp) / bl) * 100 if bl > 0 else 0 for wp, bl in zip(whisperpipe_values, baseline_values)]
         
+        # Step 3: Create heatmap
+        data_matrix = np.array([whisperpipe_values, baseline_values, improvements]).T
+        metric_labels = list(metrics_def.keys())
+        
+        # Normalize scores for coloring (higher is better)
+        scores = np.zeros_like(data_matrix[:, :2])
+        for i in range(len(metric_labels)):
+            lower_is_better = i != 2 # For all metrics here except util, lower is better. Assuming moderate util is not the goal.
+            row = data_matrix[i, :2]
+            if np.all(row == 0): continue
+            
+            if lower_is_better:
+                scores[i, :] = 1 - (row - row.min()) / (row.max() - row.min()) if row.max() != row.min() else 0.5
+            else:
+                scores[i, :] = (row - row.min()) / (row.max() - row.min()) if row.max() != row.min() else 0.5
+
+        # Create heatmap from scores, but annotate with real values
+        im = ax.imshow(scores, cmap='RdYlGn', aspect='auto', vmin=0, vmax=1)
+
         # Set ticks and labels
-        ax.set_xticks(range(3))
-        ax.set_xticklabels(['whisperpipe', 'Baseline', 'Improvement %'])
-        ax.set_yticks(range(len(metrics)))
-        ax.set_yticklabels(metrics)
+        ax.set_xticks(range(2))
+        ax.set_xticklabels(['whisperpipe', 'Baseline'])
+        ax.set_yticks(range(len(metric_labels)))
+        ax.set_yticklabels(metric_labels, fontsize=8)
         
-        # Add text annotations
-        for i in range(len(metrics)):
-            for j in range(3):
-                if j == 2:  # Improvement column
-                    text = f'{improvements[i]:.1f}%'
-                    color = 'white' if improvements[i] > 50 else 'black'
-                else:
-                    text = f'{data_matrix[i, j]:.1f}'
-                    color = 'white' if normalized_data[i, j] < 0.5 else 'black'
-                
-                ax.text(j, i, text, ha='center', va='center', 
-                       color=color, fontweight='bold', fontsize=9)
-        
-        # Add colorbar
-        cbar = plt.colorbar(im, ax=ax, shrink=0.8)
-        cbar.set_label('Performance Score\n(1.0 = Best, 0.0 = Worst)', rotation=270, labelpad=20)
-        
-        ax.set_title('Multi-Metric Performance Comparison Heatmap\n(Green = Better Performance)')
-        
-        plt.tight_layout()
+        ax.tick_params(axis='x', rotation=45)
+
+        # Add text annotations for real values and improvements
+        for i in range(len(metric_labels)):
+            for j in range(2):
+                ax.text(j, i, f'{data_matrix[i, j]:.2f}', ha='center', va='center', 
+                       color='black', fontweight='bold', fontsize=8)
+        # Add a column for improvement text
+        ax.axvline(1.5, color='black', lw=2)
+        for i, val in enumerate(improvements):
+            ax.text(2, i, f'{val:+.1f}%', ha='left', va='center',
+            color='darkgreen' if val > 0 else 'darkred', fontweight='bold', fontsize=8)
+
+
+        ax.set_title('Multi-Metric Performance Comparison')
+        fig.tight_layout()
         
         # Save plot
         filename = self.plots_dir / 'plot_16_multimetric_improvement_heatmap'
