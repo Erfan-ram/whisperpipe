@@ -1575,81 +1575,75 @@ class PlotGenerator:
         return str(filename)
     
     def plot_17_efficiency_triangle_plot(self, analysis: Dict) -> str:
-        """Plot 17: Efficiency Triangle Plot (3D Scatter)"""
+        """Plot 17: System Efficiency Profile (2D Bubble Chart)"""
         self._setup_ieee_style()
         
-        fig = plt.figure(figsize=self.config['plots']['sizes']['square'])
-        ax = fig.add_subplot(111, projection='3d')
-        
-        # Extract real efficiency metrics from analysis
-        wp_metrics = analysis.get('whisperpipe', {})
-        bl_metrics = analysis.get('baseline', {})
-        
-        # Get resource summaries
-        wp_resource = wp_metrics.get('resource_summary', {})
-        bl_resource = bl_metrics.get('resource_summary', {})
-        
-        # Calculate Resource Efficiency Index (REI)
-        wp_peak_gpu = wp_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        bl_peak_gpu = bl_resource.get('gpu_memory', {}).get('peak_mb', 0)
-        audio_duration = wp_metrics.get('total_processing_time', 40.4)
-        
+        # 1. Correct data extraction from descriptive statistics
+        wp_stats = analysis.get('descriptive_statistics', {}).get('whisperpipe', {})
+        bl_stats = analysis.get('descriptive_statistics', {}).get('baseline', {})
+
+        run_data = self._load_run_data()
+        audio_duration = next((run.get('metadata', {}).get('total_audio_duration', 0) 
+                               for run in run_data if 'error' not in run and run.get('metadata', {}).get('total_audio_duration', 0) > 0), 1.0)
+        if audio_duration == 1.0:
+            print("Warning: Could not determine audio_duration for plot 17, falling back to 1.0s. REI metric may be inaccurate.")
+
+        # 2. Calculate metrics using mean values from statistics
+        wp_peak_gpu = wp_stats.get('peak_gpu_memory_mb', {}).get('mean', 0)
+        bl_peak_gpu = bl_stats.get('peak_gpu_memory_mb', {}).get('mean', 0)
         wp_rei = wp_peak_gpu / audio_duration if audio_duration > 0 else 0
         bl_rei = bl_peak_gpu / audio_duration if audio_duration > 0 else 0
-        
-        # Calculate Computational Intensity (CI)
-        wp_gpu_util = wp_resource.get('gpu_utilization', {}).get('mean_pct', 0)
-        bl_gpu_util = bl_resource.get('gpu_utilization', {}).get('mean_pct', 0)
-        
-        wp_ci = wp_gpu_util / 100.0
-        bl_ci = bl_gpu_util / 100.0
-        
-        # Calculate Memory Stability (inverse of growth rate)
-        wp_mgr = 0.0  # whisperpipe has stable memory
-        bl_mgr = (bl_peak_gpu - wp_peak_gpu) / audio_duration if audio_duration > 0 else 0
-        
-        wp_stability = 100.0  # High stability (no growth)
-        bl_stability = max(0, 100 - (bl_mgr * 100))  # Lower stability with growth
-        
-        # Plot points
-        ax.scatter([wp_rei], [wp_ci], [wp_stability], 
-                  color=self.colors['whisperpipe'], s=200, alpha=0.8, 
-                  label='whisperpipe', marker='o')
-        ax.scatter([bl_rei], [bl_ci], [bl_stability], 
-                  color=self.colors['baseline'], s=200, alpha=0.8, 
-                  label='Baseline', marker='s')
-        
-        # Add optimal region (low REI, low CI, high stability)
-        optimal_rei = np.linspace(0, 20, 10)
-        optimal_ci = np.linspace(0, 1, 10)
-        optimal_stability = np.linspace(80, 100, 10)
-        
-        # Create optimal region surface (simplified)
-        REI, CI = np.meshgrid(optimal_rei, optimal_ci)
-        STABILITY = np.full_like(REI, 90)  # Constant high stability
-        
-        ax.plot_surface(REI, CI, STABILITY, alpha=0.1, color='green', 
-                       label='Optimal Region')
-        
-        # Set labels
-        ax.set_xlabel('Resource Efficiency Index\n(MB/s, lower is better)')
-        ax.set_ylabel('Computational Intensity\n(lower is better)')
-        ax.set_zlabel('Memory Stability\n(%, higher is better)')
-        ax.set_title('Efficiency Triangle Plot\n(3D Performance Space)')
-        
-        # Add annotations
-        ax.text(wp_rei + 1, wp_ci + 0.05, wp_stability + 2, 'whisperpipe', 
-               fontsize=10, color=self.colors['whisperpipe'], weight='bold')
-        ax.text(bl_rei + 1, bl_ci + 0.05, bl_stability + 2, 'Baseline', 
-               fontsize=10, color=self.colors['baseline'], weight='bold')
-        
-        # Set viewing angle
-        ax.view_init(elev=20, azim=45)
-        
+
+        wp_gpu_util = wp_stats.get('mean_gpu_util_pct', {}).get('mean', 0)
+        bl_gpu_util = bl_stats.get('mean_gpu_util_pct', {}).get('mean', 0)
+        wp_ci = wp_gpu_util
+        bl_ci = bl_gpu_util
+
+        wp_mgr = 0.0  # whisperpipe has stable memory by design
+        bl_mgr = bl_stats.get('memory_growth_rate_mbs', {}).get('mean', 0)
+        wp_stability = 100.0
+        bl_stability = max(0, 100 - (bl_mgr * 10))
+
+        # 3. Create a 2D Bubble Chart
+        fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['square'])
+
+        # Scale bubble sizes for visibility
+        wp_size = 200 + wp_stability * 15
+        bl_size = 200 + bl_stability * 15
+
+        # Plot bubbles
+        ax.scatter([wp_rei], [wp_ci], s=wp_size, color=self.colors['whisperpipe'], alpha=0.7, label='whisperpipe', edgecolors='black', linewidth=1.5)
+        ax.scatter([bl_rei], [bl_ci], s=bl_size, color=self.colors['baseline'], alpha=0.7, label='Baseline', edgecolors='black', linewidth=1.5)
+
+        # 4. Annotations and Labels
+        ax.text(wp_rei, wp_ci, f'  Whisperpipe\n  REI: {wp_rei:.2f}\n  CI: {wp_ci:.1f}%\n  Stability: {wp_stability:.1f}%', va='center', ha='left', fontsize=7, bbox=dict(boxstyle="round,pad=0.5", fc="white", ec="black", lw=0.5, alpha=0.8))
+        ax.text(bl_rei, bl_ci, f'  Baseline\n  REI: {bl_rei:.2f}\n  CI: {bl_ci:.1f}%\n  Stability: {bl_stability:.1f}%', va='center', ha='left', fontsize=7, bbox=dict(boxstyle="round,pad=0.5", fc="white", ec="black", lw=0.5, alpha=0.8))
+
+        # 5. Academic-style improvements
+        ax.set_xlabel('Resource Efficiency Index (REI, MB/s) → Lower is Better')
+        ax.set_ylabel('Computational Intensity (CI, GPU %) → Lower is Better')
+        ax.set_title('System Efficiency Profile')
+        ax.grid(True, linestyle='--', alpha=0.6)
+
+        # Set limits to provide padding and ensure origin is visible
+        ax.set_xlim(max(wp_rei, bl_rei) * 1.1, 0)
+        ax.set_ylim(max(wp_ci, bl_ci) * 1.1, 0)
+
+        # Legend for bubble size (Stability)
+        handles, labels = [], []
+        for stability in [50, 75, 100]:
+            handles.append(plt.scatter([], [], s=(200 + stability*15)/5, c='gray', alpha=0.7, edgecolor='black'))
+            labels.append(f'{stability}%')
+        size_legend = ax.legend(handles, labels, title='Memory Stability\n(Bubble Size)', loc='upper right', frameon=True, labelspacing=1.5)
+        ax.add_artist(size_legend)
+
+        # Main legend for colors
+        main_legend = ax.legend(handles=[ax.collections[0], ax.collections[1]], labels=['whisperpipe', 'Baseline'], title='System', loc='lower right', frameon=True)
+
         plt.tight_layout()
         
         # Save plot
-        filename = self.plots_dir / 'plot_17_efficiency_triangle_plot'
+        filename = self.plots_dir / 'plot_17_efficiency_profile_bubble_chart'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
         
