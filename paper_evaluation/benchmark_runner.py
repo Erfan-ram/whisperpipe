@@ -43,17 +43,22 @@ class NumpyEncoder(json.JSONEncoder):
 class BenchmarkRunner:
     """Enhanced benchmark runner with comprehensive results logging"""
     
-    def __init__(self, config_path: str = "configs/default.yaml"):
+    def __init__(self, config_path: str = "configs/default.yaml", output_dir: Optional[str] = None):
         """Initialize benchmark runner with configuration"""
         self.config = self._load_config(config_path)
-        self.results_dir = Path(self.config['output']['base_dir'])
-        self.run_id = datetime.now().strftime(self.config['output']['naming']['timestamp_format'])
-        self.run_dir = self.results_dir / f"{self.config['output']['naming']['run_prefix']}_{self.run_id}"
+        
+        if output_dir:
+            self.run_dir = Path(output_dir)
+        else:
+            self.results_dir = Path(self.config['output']['base_dir'])
+            self.run_id = datetime.now().strftime(self.config['output']['naming']['timestamp_format'])
+            self.run_dir = self.results_dir / f"{self.config['output']['naming']['run_prefix']}_{self.run_id}"
         
         # Create directories
         self.run_dir.mkdir(parents=True, exist_ok=True)
-        for subdir in self.config['output']['subdirs'].values():
-            (self.run_dir / subdir).mkdir(parents=True, exist_ok=True)
+        if self.config['output'].get('subdirs'):
+            for subdir in self.config['output']['subdirs'].values():
+                (self.run_dir / subdir).mkdir(parents=True, exist_ok=True)
     
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration from YAML file"""
@@ -367,11 +372,13 @@ def main():
                        help='Configuration file path')
     parser.add_argument('--runs', type=int, 
                        help='Number of benchmark runs (overrides config)')
+    parser.add_argument('--output-dir', type=str, 
+                       help='Directory to save the results')
     
     args = parser.parse_args()
     
     # Initialize runner
-    runner = BenchmarkRunner(args.config)
+    runner = BenchmarkRunner(config_path=args.config, output_dir=args.output_dir)
     
     # Override runs if specified
     if args.runs:

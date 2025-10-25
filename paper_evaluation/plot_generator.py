@@ -28,13 +28,16 @@ plt.rcParams['grid.linewidth'] = 0.3
 class PlotGenerator:
     """Generate publication-ready plots for academic papers"""
     
-    def __init__(self, results_dir: str = "results", config_path: str = "configs/default.yaml"):
+    def __init__(self, results_dir: str = "results", config_path: str = "configs/default.yaml", run_dir: Optional[str] = None):
         """Initialize plot generator"""
-        self.results_dir = Path(results_dir)
-        self.latest_run_dir = self._find_latest_run()
-        
-        if not self.latest_run_dir:
-            raise ValueError(f"No benchmark results found in {results_dir}")
+        if run_dir:
+            self.latest_run_dir = Path(run_dir)
+        else:
+            self.results_dir = Path(results_dir)
+            self.latest_run_dir = self._find_latest_run()
+
+        if not self.latest_run_dir or not self.latest_run_dir.exists():
+            raise ValueError(f"No benchmark results found in {run_dir or results_dir}")
         
         # Load configuration
         self.config = self._load_config(config_path)
@@ -48,17 +51,7 @@ class PlotGenerator:
         
         print(f"Generating plots for results from: {self.latest_run_dir}")
     
-    def _find_latest_run(self) -> Optional[Path]:
-        """Find the most recent benchmark run directory"""
-        if not self.results_dir.exists():
-            return None
-        
-        run_dirs = [d for d in self.results_dir.iterdir() if d.is_dir() and d.name.startswith('run_')]
-        if not run_dirs:
-            return None
-        
-        latest = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        return latest
+
     
     def _load_config(self, config_path: str) -> Dict:
         """Load configuration"""
@@ -1840,15 +1833,16 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate publication-ready plots')
+    parser.add_argument('--run-dir', type=str, help='Path to the specific run directory to analyze')
     parser.add_argument('--results-dir', default='results', 
-                       help='Results directory path')
+                       help='Base results directory (used if --run-dir is not provided)')
     parser.add_argument('--config', default='configs/default.yaml',
                        help='Configuration file path')
     
     args = parser.parse_args()
     
     # Initialize plot generator
-    generator = PlotGenerator(args.results_dir, args.config)
+    generator = PlotGenerator(results_dir=args.results_dir, config_path=args.config, run_dir=args.run_dir)
     
     # Generate all plots
     plots = generator.generate_all_plots()

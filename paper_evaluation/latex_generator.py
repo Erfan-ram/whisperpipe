@@ -18,13 +18,16 @@ warnings.filterwarnings('ignore')
 class LaTeXGenerator:
     """Generate publication-ready LaTeX tables"""
     
-    def __init__(self, results_dir: str = "results"):
+    def __init__(self, results_dir: str = "results", run_dir: Optional[str] = None):
         """Initialize LaTeX generator"""
-        self.results_dir = Path(results_dir)
-        self.latest_run_dir = self._find_latest_run()
-        
-        if not self.latest_run_dir:
-            raise ValueError(f"No benchmark results found in {results_dir}")
+        if run_dir:
+            self.latest_run_dir = Path(run_dir)
+        else:
+            self.results_dir = Path(results_dir)
+            self.latest_run_dir = self._find_latest_run()
+
+        if not self.latest_run_dir or not self.latest_run_dir.exists():
+            raise ValueError(f"No benchmark results found in {run_dir or results_dir}")
         
         # Create output directory
         self.tables_dir = self.latest_run_dir / 'tables'
@@ -32,17 +35,7 @@ class LaTeXGenerator:
         
         print(f"Generating LaTeX tables for results from: {self.latest_run_dir}")
     
-    def _find_latest_run(self) -> Optional[Path]:
-        """Find the most recent benchmark run directory"""
-        if not self.results_dir.exists():
-            return None
-        
-        run_dirs = [d for d in self.results_dir.iterdir() if d.is_dir() and d.name.startswith('run_')]
-        if not run_dirs:
-            return None
-        
-        latest = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        return latest
+
     
     def _load_analysis_data(self) -> Dict:
         """Load statistical analysis data"""
@@ -447,13 +440,14 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate LaTeX tables')
+    parser.add_argument('--run-dir', type=str, help='Path to the specific run directory to analyze')
     parser.add_argument('--results-dir', default='results', 
-                       help='Results directory path')
+                       help='Base results directory (used if --run-dir is not provided)')
     
     args = parser.parse_args()
     
     # Initialize LaTeX generator
-    generator = LaTeXGenerator(args.results_dir)
+    generator = LaTeXGenerator(results_dir=args.results_dir, run_dir=args.run_dir)
     
     # Generate all tables
     tables = generator.generate_all_tables()

@@ -6,8 +6,8 @@ benchmark:
   # Audio data settings
   audio:
     data_dir: "test_audio"  # Directory containing audio files
-    file_limit: 5  # Maximum number of files to process
-    max_chunk_duration_seconds: 50  # Maximum duration per chunk
+    file_limit: 6  # Maximum number of files to process
+    max_chunk_duration_seconds: 40  # Maximum duration per chunk
   
   # Model settings
   model:
@@ -22,7 +22,7 @@ benchmark:
   
   # Multiple runs for statistical significance
   runs:
-    count: 1  # Number of benchmark runs
+    count: 2  # Number of benchmark runs
     parallel: false  # Run in parallel (requires more memory)
 
 # Statistical Analysis

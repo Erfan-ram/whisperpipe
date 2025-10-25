@@ -15,6 +15,7 @@ from pathlib import Path
 from datetime import datetime
 import yaml
 import json
+import shutil
 
 
 class PaperEvaluationRunner:
@@ -26,17 +27,12 @@ class PaperEvaluationRunner:
         self.config = self._load_config()
         self.start_time = datetime.now()
         
-        # Create results directory
+        # Define results directory
         self.results_dir = Path(self.config['output']['base_dir'])
-        self.results_dir.mkdir(exist_ok=True)
-        
-        # Create run directory
-        self.run_id = self.start_time.strftime(self.config['output']['naming']['timestamp_format'])
-        self.run_dir = self.results_dir / f"{self.config['output']['naming']['run_prefix']}_{self.run_id}"
-        self.run_dir.mkdir(exist_ok=True)
+        self.run_dir = self.results_dir / "latest_run"
         
         print(f"🚀 Starting Academic Paper Evaluation")
-        print(f"📁 Results will be saved to: {self.run_dir}")
+        print(f"📁 Using results directory: {self.run_dir}")
         print(f"⏰ Started at: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     
     def _load_config(self) -> dict:
@@ -143,7 +139,7 @@ class PaperEvaluationRunner:
         print("="*60)
         
         # Run benchmark runner
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/benchmark_runner.py --config {self.config_path}"
+        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/benchmark_runner.py --config {self.config_path} --output-dir {self.run_dir}"
         if self.config['benchmark']['runs']['count'] > 1:
             command += f" --runs {self.config['benchmark']['runs']['count']}"
         
@@ -162,7 +158,7 @@ class PaperEvaluationRunner:
         print("📈 STEP 2: STATISTICAL ANALYSIS")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/statistical_analysis.py --results-dir {self.results_dir}"
+        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/statistical_analysis.py --run-dir {self.run_dir}"
         success = self._run_command(command, "Running statistical analysis")
         
         if not success:
@@ -178,7 +174,7 @@ class PaperEvaluationRunner:
         print("📊 STEP 3: PLOT GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/plot_generator.py --results-dir {self.results_dir} --config {self.config_path}"
+        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/plot_generator.py --run-dir {self.run_dir} --config {self.config_path}"
         success = self._run_command(command, "Generating publication-ready plots")
         
         if not success:
@@ -194,7 +190,7 @@ class PaperEvaluationRunner:
         print("📋 STEP 4: LATEX TABLE GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/latex_generator.py --results-dir {self.results_dir}"
+        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/latex_generator.py --run-dir {self.run_dir}"
         success = self._run_command(command, "Generating LaTeX tables")
         
         if not success:
@@ -210,7 +206,7 @@ class PaperEvaluationRunner:
         print("📄 STEP 5: REPORT GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/report_generator.py --results-dir {self.results_dir} --format all"
+        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/report_generator.py --run-dir {self.run_dir} --format all"
         success = self._run_command(command, "Generating comprehensive reports")
         
         if not success:
@@ -290,50 +286,66 @@ class PaperEvaluationRunner:
         print(f"   4. Open interactive notebook: {self.run_dir}/interactive_analysis.ipynb")
         print(f"   5. Copy plots from: {self.run_dir}/plots/")
     
-    def run_full_evaluation(self) -> bool:
-        """Run the complete evaluation pipeline"""
-        print("🚀 Starting Academic Paper Evaluation Pipeline")
+    def run_full_evaluation(self, mode: str) -> bool:
+        """Run the complete evaluation pipeline based on the selected mode."""
+        print(f"🚀 Starting Academic Paper Evaluation Pipeline in '{mode}' mode")
         print("=" * 60)
-        
-        # Check dependencies
+
+        # Clean directory for modes that generate new test data
+        if mode in ['test', 'default']:
+            print(f"🧹 Cleaning results directory: {self.run_dir}")
+            if self.run_dir.exists():
+                shutil.rmtree(self.run_dir)
+            self.run_dir.mkdir(parents=True, exist_ok=True)
+
+        # Check dependencies and data
         if not self._check_dependencies():
             print("❌ Dependency check failed. Please install missing packages.")
             return False
         
-        # Check data availability
-        if not self._check_data_availability():
+        if mode in ['test', 'default'] and not self._check_data_availability():
             print("❌ Data availability check failed. Please ensure audio files are available.")
             return False
         
-        # Run pipeline steps
-        steps = [
-            ("Benchmark Evaluation", self.run_benchmark_evaluation),
-            ("Statistical Analysis", self.run_statistical_analysis),
-            ("Plot Generation", self.generate_plots),
-            ("LaTeX Table Generation", self.generate_latex_tables),
-            ("Report Generation", self.generate_reports),
-            ("Jupyter Notebook Creation", self.create_jupyter_notebook)
-        ]
-        
+        # Define pipeline steps for each mode
+        all_steps = {
+            "benchmark": ("Benchmark Evaluation", self.run_benchmark_evaluation),
+            "stats": ("Statistical Analysis", self.run_statistical_analysis),
+            "plots": ("Plot Generation", self.generate_plots),
+            "tables": ("LaTeX Table Generation", self.generate_latex_tables),
+            "reports": ("Report Generation", self.generate_reports),
+            "notebook": ("Jupyter Notebook Creation", self.create_jupyter_notebook)
+        }
+
+        steps_to_run = []
+        if mode == 'test':
+            steps_to_run = [all_steps["benchmark"]]
+        elif mode == 'evaluate':
+            steps_to_run = [all_steps["stats"], all_steps["plots"], all_steps["tables"], all_steps["reports"], all_steps["notebook"]]
+        else:  # default mode
+            steps_to_run = list(all_steps.values())
+
         failed_steps = []
-        
-        for step_name, step_function in steps:
+        for step_name, step_function in steps_to_run:
             try:
                 if not step_function():
                     failed_steps.append(step_name)
+                    # Stop pipeline if a step fails
+                    break
             except Exception as e:
                 print(f"❌ Exception in {step_name}: {e}")
                 failed_steps.append(step_name)
+                break
         
         # Generate summary
         self.generate_summary()
         
         if failed_steps:
-            print(f"\n⚠️  Some steps failed: {', '.join(failed_steps)}")
+            print(f"\n⚠️  Mode '{mode}' failed at step: {', '.join(failed_steps)}")
             print("   Please check the logs above for details.")
             return False
         else:
-            print(f"\n🎉 All steps completed successfully!")
+            print(f"\n🎉 Mode '{mode}' completed successfully!")
             return True
 
 
@@ -344,7 +356,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  python run_paper_evaluation.py                    # Run with default config
+  python run_paper_evaluation.py                    # Run default mode (test + evaluate)
+  python run_paper_evaluation.py --mode test        # Run only benchmark tests
+  python run_paper_evaluation.py --mode evaluate    # Run only evaluation on existing results
   python run_paper_evaluation.py --config my_config.yaml  # Use custom config
   python run_paper_evaluation.py --quick           # Quick run (1 iteration)
   python run_paper_evaluation.py --runs 5          # Run 5 iterations for statistics
@@ -353,18 +367,12 @@ Examples:
     
     parser.add_argument('--config', default='configs/default.yaml',
                        help='Configuration file path (default: configs/default.yaml)')
+    parser.add_argument('--mode', default='default', choices=['default', 'test', 'evaluate'],
+                       help='Execution mode (default: default)')
     parser.add_argument('--runs', type=int,
                        help='Number of benchmark runs (overrides config)')
     parser.add_argument('--quick', action='store_true',
                        help='Quick run with minimal iterations')
-    parser.add_argument('--skip-benchmark', action='store_true',
-                       help='Skip benchmark evaluation (use existing results)')
-    parser.add_argument('--skip-plots', action='store_true',
-                       help='Skip plot generation')
-    parser.add_argument('--skip-tables', action='store_true',
-                       help='Skip LaTeX table generation')
-    parser.add_argument('--skip-reports', action='store_true',
-                       help='Skip report generation')
     
     args = parser.parse_args()
     
@@ -380,7 +388,7 @@ Examples:
         print(f"🔄 Custom runs: {args.runs} iterations")
     
     # Run evaluation
-    success = runner.run_full_evaluation()
+    success = runner.run_full_evaluation(mode=args.mode)
     
     if success:
         print("\n🎉 Academic paper evaluation completed successfully!")

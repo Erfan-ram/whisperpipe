@@ -34,13 +34,16 @@ except ImportError:
 class ReportGenerator:
     """Generate comprehensive HTML/PDF reports"""
     
-    def __init__(self, results_dir: str = "results"):
+    def __init__(self, results_dir: str = "results", run_dir: Optional[str] = None):
         """Initialize report generator"""
-        self.results_dir = Path(results_dir)
-        self.latest_run_dir = self._find_latest_run()
-        
-        if not self.latest_run_dir:
-            raise ValueError(f"No benchmark results found in {results_dir}")
+        if run_dir:
+            self.latest_run_dir = Path(run_dir)
+        else:
+            self.results_dir = Path(results_dir)
+            self.latest_run_dir = self._find_latest_run()
+
+        if not self.latest_run_dir or not self.latest_run_dir.exists():
+            raise ValueError(f"No benchmark results found in {run_dir or results_dir}")
         
         # Create output directory
         self.reports_dir = self.latest_run_dir / 'reports'
@@ -48,17 +51,7 @@ class ReportGenerator:
         
         print(f"Generating reports for results from: {self.latest_run_dir}")
     
-    def _find_latest_run(self) -> Optional[Path]:
-        """Find the most recent benchmark run directory"""
-        if not self.results_dir.exists():
-            return None
-        
-        run_dirs = [d for d in self.results_dir.iterdir() if d.is_dir() and d.name.startswith('run_')]
-        if not run_dirs:
-            return None
-        
-        latest = max(run_dirs, key=lambda x: x.stat().st_mtime)
-        return latest
+
     
     def _load_analysis_data(self) -> Dict:
         """Load statistical analysis data"""
@@ -658,15 +651,16 @@ def main():
     import argparse
     
     parser = argparse.ArgumentParser(description='Generate comprehensive reports')
+    parser.add_argument('--run-dir', type=str, help='Path to the specific run directory to analyze')
     parser.add_argument('--results-dir', default='results', 
-                       help='Results directory path')
+                       help='Base results directory (used if --run-dir is not provided)')
     parser.add_argument('--format', choices=['html', 'pdf', 'markdown', 'all'], 
                        default='all', help='Report format to generate')
     
     args = parser.parse_args()
     
     # Initialize report generator
-    generator = ReportGenerator(args.results_dir)
+    generator = ReportGenerator(results_dir=args.results_dir, run_dir=args.run_dir)
     
     # Generate reports based on format
     if args.format == 'all':
