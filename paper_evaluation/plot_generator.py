@@ -16,13 +16,8 @@ from typing import Dict, List, Tuple, Optional, Any
 import warnings
 warnings.filterwarnings('ignore')
 
-# Set up matplotlib for publication quality
-plt.rcParams['figure.dpi'] = 300
-plt.rcParams['savefig.dpi'] = 300
-plt.rcParams['font.family'] = 'Times New Roman'
-plt.rcParams['font.size'] = 9
-plt.rcParams['axes.linewidth'] = 0.5
-plt.rcParams['grid.linewidth'] = 0.3
+# Publication quality settings are now handled by the _setup_ieee_style() method
+# which dynamically loads them from the configuration file.
 
 
 class PlotGenerator:
@@ -115,20 +110,30 @@ class PlotGenerator:
         return run_data
     
     def _setup_ieee_style(self):
-        """Setup IEEE publication style"""
+        """Setup IEEE publication style based on config."""
         plt.style.use('seaborn-v0_8-whitegrid')
         sns.set_palette([self.colors['whisperpipe'], self.colors['baseline']])
         
-        # IEEE-specific settings
+        plots_config = self.config.get('plots', {})
+        font_config = plots_config.get('font', {})
+        
+        family = font_config.get('family', 'Times New Roman')
+        size = font_config.get('size', 9)
+        weight = font_config.get('weight', 'normal')
+        dpi = plots_config.get('dpi', 300)
+
         plt.rcParams.update({
-            'font.family': 'Times New Roman',
-            'font.size': 9,
-            'axes.titlesize': 10,
-            'axes.labelsize': 9,
-            'xtick.labelsize': 8,
-            'ytick.labelsize': 8,
-            'legend.fontsize': 8,
-            'figure.titlesize': 11,
+            'figure.dpi': dpi,
+            'savefig.dpi': dpi,
+            'font.family': family,
+            'font.size': size,
+            'font.weight': weight,
+            'axes.titlesize': size + 1,
+            'axes.labelsize': size,
+            'xtick.labelsize': size - 1,
+            'ytick.labelsize': size - 1,
+            'legend.fontsize': size - 1,
+            'figure.titlesize': size + 2,
             'axes.linewidth': 0.5,
             'grid.linewidth': 0.3,
             'lines.linewidth': 1.0,
