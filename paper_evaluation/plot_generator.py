@@ -1182,10 +1182,10 @@ class PlotGenerator:
             time_points = common_time
         
         # Create area chart
-        ax.fill_between(time_points, 0, wp_gpu_util, alpha=0.6, color=self.colors['whisperpipe'], 
-                       label='whisperpipe')
-        ax.fill_between(time_points, 0, bl_gpu_util, alpha=0.6, color=self.colors['baseline'], 
-                       label='Baseline')
+        ax.fill_between(time_points, 0, bl_gpu_util, alpha=0.6, color=self.colors['baseline'],
+                        label='Baseline')
+        ax.fill_between(time_points, 0, wp_gpu_util, alpha=0.6, color=self.colors['whisperpipe'],
+                        label='whisperpipe')
         
         # Add mean lines
         wp_mean = np.mean(wp_gpu_util)
@@ -1360,10 +1360,10 @@ class PlotGenerator:
             raise ValueError("No computational intensity data found for plot 14. Please run group_benchmark.py first to generate real benchmark data.")
         
         # Create stacked area plot
-        ax.fill_between(time_points, 0, wp_ci, alpha=0.6, color=self.colors['whisperpipe'], 
-                       label='whisperpipe')
-        ax.fill_between(time_points, 0, bl_ci, alpha=0.6, color=self.colors['baseline'], 
-                       label='Baseline')
+        ax.fill_between(time_points, 0, bl_ci, alpha=0.6, color=self.colors['baseline'],
+                        label='Baseline')
+        ax.fill_between(time_points, 0, wp_ci, alpha=0.6, color=self.colors['whisperpipe'],
+                        label='whisperpipe')
         
         # Add mean lines
         wp_mean = np.mean(wp_ci)
