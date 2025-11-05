@@ -1494,7 +1494,7 @@ class PlotGenerator:
 
         base_metrics_config = {
             'Peak GPU Memory (MB)': ('peak_gpu_memory_mb', True),
-            'Peak RAM (MB)': ('peak_ram_mb', True),
+            'Peak RAM (MB)': ('peak_ram_mb', False),
             'GPU Utilization (%)': ('mean_gpu_util_pct', True),
             'Memory Growth Rate (MB/s)': ('memory_growth_rate_mbs', True),
         }
