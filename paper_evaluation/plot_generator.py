@@ -20,6 +20,8 @@ warnings.filterwarnings('ignore')
 # which dynamically loads them from the configuration file.
 
 
+from datetime import datetime
+
 class PlotGenerator:
     """Generate publication-ready plots for academic papers"""
     
@@ -108,6 +110,106 @@ class PlotGenerator:
                 run_data.append(json.load(f))
         
         return run_data
+    
+    def generate_data_overview(self) -> str:
+        """Generate a comprehensive overview of all data and save it as a JSON file.
+        
+        Returns:
+            str: Path to the generated overview file
+        """
+        overview = {
+            'timestamp': datetime.now().isoformat(),
+            'run_directory': str(self.latest_run_dir),
+            'summary': {
+                'total_runs': 0,
+                'successful_runs': 0,
+                'failed_runs': 0,
+                'total_audio_duration': 0.0,
+                'total_processing_time': 0.0
+            },
+            'performance_metrics': {
+                'whisperpipe': {},
+                'baseline': {}
+            },
+            'resource_usage': {
+                'whisperpipe': {},
+                'baseline': {}
+            }
+        }
+        
+        # Load analysis data
+        try:
+            analysis_data = self._load_analysis_data()
+            # Add statistical analysis summary
+            overview['statistical_analysis'] = {
+                't_tests': analysis_data.get('t_tests', {}),
+                'improvements': analysis_data.get('improvements', {})
+            }
+            
+            # Add raw metrics summary
+            raw_metrics = analysis_data.get('raw_metrics', {})
+            for system in ['whisperpipe', 'baseline']:
+                if system in raw_metrics:
+                    metrics = raw_metrics[system]
+                    overview['performance_metrics'][system] = {
+                        'wer': {
+                            'mean': np.mean(metrics.get('wer', [0])),
+                            'std': np.std(metrics.get('wer', [0]), ddof=1)
+                        },
+                        'stability_index': {
+                            'mean': np.mean(metrics.get('stability_index', [0])),
+                            'std': np.std(metrics.get('stability_index', [0]), ddof=1)
+                        },
+                        'latency': {
+                            'mean': np.mean(metrics.get('avg_latency_ms', [0])),
+                            'std': np.std(metrics.get('avg_latency_ms', [0]), ddof=1)
+                        }
+                    }
+        except FileNotFoundError:
+            overview['statistical_analysis'] = {'status': 'not available'}
+        
+        # Process run data
+        try:
+            run_data = self._load_run_data()
+            overview['summary']['total_runs'] = len(run_data)
+            
+            for run in run_data:
+                if 'error' not in run:
+                    overview['summary']['successful_runs'] += 1
+                    
+                    # Accumulate audio duration and processing time
+                    if 'whisperpipe' in run:
+                        wp_data = run['whisperpipe']
+                        overview['summary']['total_audio_duration'] += wp_data.get('total_audio_duration', 0)
+                        overview['summary']['total_processing_time'] += wp_data.get('total_processing_time', 0)
+                        
+                        # Aggregate resource usage
+                        if 'resource_usage' in wp_data:
+                            for metric, value in wp_data['resource_usage'].items():
+                                if metric not in overview['resource_usage']['whisperpipe']:
+                                    overview['resource_usage']['whisperpipe'][metric] = []
+                                overview['resource_usage']['whisperpipe'][metric].append(value)
+                else:
+                    overview['summary']['failed_runs'] += 1
+        except FileNotFoundError:
+            overview['run_data'] = {'status': 'not available'}
+        
+        # Calculate average resource usage
+        for system in ['whisperpipe', 'baseline']:
+            system_resources = overview['resource_usage'].get(system, {})
+            for metric, values in system_resources.items():
+                if values:
+                    system_resources[metric] = {
+                        'mean': np.mean(values),
+                        'std': np.std(values, ddof=1) if len(values) > 1 else 0
+                    }
+        
+        # Save overview to file
+        overview_path = self.latest_run_dir / 'data_overview.json'
+        with open(overview_path, 'w') as f:
+            json.dump(overview, f, indent=2)
+        
+        return str(overview_path)
     
     def _setup_ieee_style(self):
         """Setup IEEE publication style based on config."""

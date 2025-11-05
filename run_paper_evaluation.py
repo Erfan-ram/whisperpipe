@@ -286,6 +286,27 @@ class PaperEvaluationRunner:
         print(f"   4. Open interactive notebook: {self.run_dir}/interactive_analysis.ipynb")
         print(f"   5. Copy plots from: {self.run_dir}/plots/")
     
+    def generate_data_overview(self) -> bool:
+        """Generate comprehensive data overview using the PlotGenerator"""
+        print("\n" + "="*60)
+        print("📊 GENERATING DATA OVERVIEW")
+        print("="*60)
+        
+        try:
+            from paper_evaluation.plot_generator import PlotGenerator
+            
+            # Initialize plot generator with current run directory
+            plot_gen = PlotGenerator(run_dir=str(self.run_dir))
+            
+            # Generate data overview
+            overview_path = plot_gen.generate_data_overview()
+            print(f"✅ Data overview generated: {overview_path}")
+            return True
+            
+        except Exception as e:
+            print(f"❌ Failed to generate data overview: {e}")
+            return False
+    
     def run_full_evaluation(self, mode: str) -> bool:
         """Run the complete evaluation pipeline based on the selected mode."""
         print(f"🚀 Starting Academic Paper Evaluation Pipeline in '{mode}' mode")
@@ -314,14 +335,16 @@ class PaperEvaluationRunner:
             "plots": ("Plot Generation", self.generate_plots),
             "tables": ("LaTeX Table Generation", self.generate_latex_tables),
             "reports": ("Report Generation", self.generate_reports),
-            "notebook": ("Jupyter Notebook Creation", self.create_jupyter_notebook)
+            "notebook": ("Jupyter Notebook Creation", self.create_jupyter_notebook),
+            "overview": ("Data Overview Generation", self.generate_data_overview)
         }
 
         steps_to_run = []
         if mode == 'test':
             steps_to_run = [all_steps["benchmark"]]
         elif mode == 'evaluate':
-            steps_to_run = [all_steps["stats"], all_steps["plots"], all_steps["tables"], all_steps["reports"], all_steps["notebook"]]
+            steps_to_run = [all_steps["stats"], all_steps["plots"], all_steps["tables"], 
+                           all_steps["reports"], all_steps["notebook"], all_steps["overview"]]
         else:  # default mode
             steps_to_run = list(all_steps.values())
 
