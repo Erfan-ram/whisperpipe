@@ -731,9 +731,9 @@ def run_benchmark(test_files, max_chunk_duration_seconds=180):
 if __name__ == "__main__":
     # Enhanced with chunked testing
     # max_chunk_duration_seconds: Maximum duration per chunk (e.g., 180s = 3 minutes)
-    MAX_CHUNK_DURATION_SECONDS = 30  # 30 seconds per chunk
+    MAX_CHUNK_DURATION_SECONDS = 50  # 30 seconds per chunk
 
-    test_files = get_test_files("test_audio", limit=4)  # Your example: 4 files
+    test_files = get_test_files("test_audio", limit=11)  # Your example: 4 files
     if not test_files:
         print("No test files found. Please check the 'test_audio' directory.")
     else:
