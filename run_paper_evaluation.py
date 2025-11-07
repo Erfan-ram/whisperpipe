@@ -139,7 +139,7 @@ class PaperEvaluationRunner:
         print("="*60)
         
         # Run benchmark runner
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/benchmark_runner.py --config {self.config_path} --output-dir {self.run_dir}"
+        command = f"python paper_evaluation/benchmark_runner.py --config {self.config_path} --output-dir {self.run_dir}"
         if self.config['benchmark']['runs']['count'] > 1:
             command += f" --runs {self.config['benchmark']['runs']['count']}"
         
@@ -158,7 +158,7 @@ class PaperEvaluationRunner:
         print("📈 STEP 2: STATISTICAL ANALYSIS")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/statistical_analysis.py --run-dir {self.run_dir}"
+        command = f"python paper_evaluation/statistical_analysis.py --run-dir {self.run_dir}"
         success = self._run_command(command, "Running statistical analysis")
         
         if not success:
@@ -174,7 +174,7 @@ class PaperEvaluationRunner:
         print("📊 STEP 3: PLOT GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/plot_generator.py --run-dir {self.run_dir} --config {self.config_path}"
+        command = f"python paper_evaluation/plot_generator.py --run-dir {self.run_dir} --config {self.config_path}"
         success = self._run_command(command, "Generating publication-ready plots")
         
         if not success:
@@ -190,7 +190,7 @@ class PaperEvaluationRunner:
         print("📋 STEP 4: LATEX TABLE GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/latex_generator.py --run-dir {self.run_dir}"
+        command = f"python paper_evaluation/latex_generator.py --run-dir {self.run_dir}"
         success = self._run_command(command, "Generating LaTeX tables")
         
         if not success:
@@ -206,7 +206,7 @@ class PaperEvaluationRunner:
         print("📄 STEP 5: REPORT GENERATION")
         print("="*60)
         
-        command = f"/home/erfan/venvs/torchzone/bin/python paper_evaluation/report_generator.py --run-dir {self.run_dir} --format all"
+        command = f"python paper_evaluation/report_generator.py --run-dir {self.run_dir} --format all"
         success = self._run_command(command, "Generating comprehensive reports")
         
         if not success:
