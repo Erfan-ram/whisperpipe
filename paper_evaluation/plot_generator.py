@@ -306,12 +306,24 @@ class PlotGenerator:
                        color='green' if improvement > 0 else 'red')
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'Metric': metric_labels,
+            'whisperpipe_mean': wp_means,
+            'baseline_mean': bl_means,
+            'whisperpipe_std': wp_stds,
+            'baseline_std': bl_stds
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_1_main_performance_comparison_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_1_main_performance_comparison'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -356,24 +368,61 @@ class PlotGenerator:
                     ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        resources_list = [title for _, title, _ in resources]
+        wp_means_list = []
+        bl_means_list = []
+        wp_stds_list = []
+        bl_stds_list = []
+        for metric, title, ax in resources:
+            if metric in analysis['raw_metrics']['whisperpipe']:
+                wp_data = analysis['raw_metrics']['whisperpipe'][metric]
+                bl_data = analysis['raw_metrics']['baseline'][metric]
+                if wp_data and bl_data:
+                    wp_means_list.append(np.mean(wp_data))
+                    bl_means_list.append(np.mean(bl_data))
+                    wp_stds_list.append(np.std(wp_data, ddof=1))
+                    bl_stds_list.append(np.std(bl_data, ddof=1))
+                else:
+                    wp_means_list.append(0)
+                    bl_means_list.append(0)
+                    wp_stds_list.append(0)
+                    bl_stds_list.append(0)
+        csv_data = {
+            'Resource': resources_list,
+            'whisperpipe_mean': wp_means_list,
+            'baseline_mean': bl_means_list,
+            'whisperpipe_std': wp_stds_list,
+            'baseline_std': bl_stds_list
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_2_resource_usage_comparison_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_2_resource_usage_comparison'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
     def plot_3_memory_usage_time_series(self, analysis: Dict) -> str:
         """Plot 3: Memory Usage Over Time"""
         self._setup_ieee_style()
-        
+
         fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['double_column'])
-        
+
         # Load real time series data
         run_data = self._load_run_data()
-        
+
+        # Initialize data variables
+        wp_times = np.array([])
+        bl_times = np.array([])
+        wp_memory = np.array([])
+        bl_memory = np.array([])
+
         # Extract time series data from the first successful run
         wp_time_series = None
         bl_time_series = None
@@ -436,14 +485,15 @@ class PlotGenerator:
         else:
             # Fallback to mock data with warning
             print("Warning: No time series data found, using mock data for memory usage plot")
-            time_points = np.linspace(0, 100, 50)
-            wp_memory = 1000 + 200 * np.sin(time_points * 0.1) + np.random.normal(0, 50, 50)
-            bl_memory = 1200 + 300 * np.sin(time_points * 0.1) + np.random.normal(0, 60, 50)
-            
-            ax.plot(time_points, wp_memory, label='whisperpipe', color=self.colors['whisperpipe'], linewidth=2)
-            ax.plot(time_points, bl_memory, label='Baseline', color=self.colors['baseline'], linewidth=2)
-            ax.fill_between(time_points, wp_memory, alpha=0.3, color=self.colors['whisperpipe'])
-            ax.fill_between(time_points, bl_memory, alpha=0.3, color=self.colors['baseline'])
+            wp_times = np.linspace(0, 100, 50)
+            bl_times = wp_times
+            wp_memory = 1000 + 200 * np.sin(wp_times * 0.1) + np.random.normal(0, 50, 50)
+            bl_memory = 1200 + 300 * np.sin(bl_times * 0.1) + np.random.normal(0, 60, 50)
+
+            ax.plot(wp_times, wp_memory, label='whisperpipe', color=self.colors['whisperpipe'], linewidth=2)
+            ax.plot(bl_times, bl_memory, label='Baseline', color=self.colors['baseline'], linewidth=2)
+            ax.fill_between(wp_times, wp_memory, alpha=0.3, color=self.colors['whisperpipe'])
+            ax.fill_between(bl_times, bl_memory, alpha=0.3, color=self.colors['baseline'])
         
         ax.set_xlabel('Time (seconds)')
         ax.set_ylabel('GPU Memory (MB)')
@@ -452,24 +502,36 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_times), len(bl_times))
+        csv_data = {
+            'whisperpipe_time': list(wp_times) + [None] * (max_len - len(wp_times)),
+            'whisperpipe_memory': list(wp_memory) + [None] * (max_len - len(wp_memory)),
+            'baseline_time': list(bl_times) + [None] * (max_len - len(bl_times)),
+            'baseline_memory': list(bl_memory) + [None] * (max_len - len(bl_memory))
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_3_memory_usage_time_series_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_3_memory_usage_time_series'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
     def plot_4_latency_time_series(self, analysis: Dict) -> str:
         """Plot 4: Processing Latency Per Chunk"""
         self._setup_ieee_style()
-        
+
         fig, ax = plt.subplots(figsize=self.config['plots']['sizes']['double_column'])
-        
+
         # Load real latency data from run results
         run_data = self._load_run_data()
-        
+
         wp_latency = []
         bl_latency = []
         chunks = []
@@ -560,12 +622,22 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'chunk': chunks,
+            'whisperpipe_latency': wp_latency,
+            'baseline_latency': bl_latency
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_4_latency_time_series_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_4_latency_time_series'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -602,12 +674,22 @@ class PlotGenerator:
             ax2.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_si) if wp_si else 0, len(bl_si) if bl_si else 0)
+        csv_data = {
+            'whisperpipe_stability_index': list(wp_si) + [None] * (max_len - len(wp_si)) if wp_si else [None] * max_len,
+            'baseline_stability_index': list(bl_si) + [None] * (max_len - len(bl_si)) if bl_si else [None] * max_len
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_5_stability_index_distribution_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_5_stability_index_distribution'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -732,12 +814,24 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        # Use the final arrays
+        csv_data = {
+            'whisperpipe_duration': wp_durations,
+            'whisperpipe_wer': wp_wers,
+            'baseline_duration': bl_durations,
+            'baseline_wer': bl_wers
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_6_resource_efficiency_vs_duration_scatter_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_6_resource_efficiency_vs_duration_scatter'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -837,12 +931,22 @@ class PlotGenerator:
         ax.grid(True)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV (excluding the closing point used for the radar plot)
+        csv_data = {
+            'metric': metrics,
+            'whisperpipe_value': wp_values[:-1],  # Exclude the closing point
+            'baseline_value': bl_values[:-1]       # Exclude the closing point
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_7_computational_efficiency_radar_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_7_computational_efficiency_radar'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -919,12 +1023,25 @@ class PlotGenerator:
         cbar.set_label('Performance Score (0-100)')
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = []
+        for i, system in enumerate(systems):
+            for j, metric in enumerate(metrics):
+                csv_data.append({
+                    'system': system,
+                    'metric': metric,
+                    'value': performance_matrix[i, j]
+                })
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_8_error_analysis_heatmap_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_8_error_analysis_heatmap'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1017,12 +1134,24 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_time_points), len(bl_time_points))
+        csv_data = {
+            'whisperpipe_time': list(wp_time_points) + [None] * (max_len - len(wp_time_points)),
+            'whisperpipe_growth_rate': list(wp_growth) + [None] * (max_len - len(wp_growth)),
+            'baseline_time': list(bl_time_points) + [None] * (max_len - len(bl_time_points)),
+            'baseline_growth_rate': list(bl_growth) + [None] * (max_len - len(bl_growth))
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_9_memory_growth_rate_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_9_memory_growth_rate'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1105,12 +1234,22 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_latency), len(bl_latency))
+        csv_data = {
+            'whisperpipe_latency': list(wp_latency) + [None] * (max_len - len(wp_latency)),
+            'baseline_latency': list(bl_latency) + [None] * (max_len - len(bl_latency))
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_10_latency_distribution_histogram_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_10_latency_distribution_histogram'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1214,12 +1353,24 @@ class PlotGenerator:
         ax1.set_title('Resource Efficiency Over Time\n(GPU Memory and RAM per Second of Audio)')
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'time': time_points,
+            'whisperpipe_gpu_efficiency': wp_gpu_efficiency,
+            'whisperpipe_ram_efficiency': wp_ram_efficiency,
+            'baseline_gpu_efficiency': bl_gpu_efficiency,
+            'baseline_ram_efficiency': bl_ram_efficiency
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_11_resource_efficiency_over_time_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_11_resource_efficiency_over_time'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1313,12 +1464,22 @@ class PlotGenerator:
         ax.set_ylim(0, 100)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'time': time_points,
+            'whisperpipe_gpu_utilization': wp_gpu_util,
+            'baseline_gpu_utilization': bl_gpu_util
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_12_gpu_utilization_time_series_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_12_gpu_utilization_time_series'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1406,12 +1567,24 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_timestamps), len(bl_timestamps))
+        csv_data = {
+            'whisperpipe_timestamp': list(wp_timestamps) + [None] * (max_len - len(wp_timestamps)),
+            'whisperpipe_memory': list(wp_memory) + [None] * (max_len - len(wp_memory)),
+            'baseline_timestamp': list(bl_timestamps) + [None] * (max_len - len(bl_timestamps)),
+            'baseline_memory': list(bl_memory) + [None] * (max_len - len(bl_memory))
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_13_memory_growth_rate_comparison_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_13_memory_growth_rate_comparison'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1490,12 +1663,22 @@ class PlotGenerator:
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'time': time_points,
+            'whisperpipe_computational_intensity': wp_ci,
+            'baseline_computational_intensity': bl_ci
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_14_computational_intensity_evolution_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_14_computational_intensity_evolution'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1571,12 +1754,22 @@ class PlotGenerator:
 
         ax.set_ylim(top=ax.get_ylim()[1] * 1.15) # Add space for annotations
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        max_len = max(len(wp_rei_runs), len(bl_rei_runs))
+        csv_data = {
+            'whisperpipe_rei': wp_rei_runs + [None] * (max_len - len(wp_rei_runs)),
+            'baseline_rei': bl_rei_runs + [None] * (max_len - len(bl_rei_runs))
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_15_rei_comparison_bars_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_15_rei_comparison_bars'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1672,12 +1865,23 @@ class PlotGenerator:
         cbar.set_ticklabels(['Worst', 'Best'])
 
         # 6. Saving and Output
-        fig.tight_layout(rect=[0, 0, 0.95, 0.95])
-        
+        fig.tight_layout(rect=(0, 0, 0.95, 0.95))
+
+        # Save plot data to CSV
+        csv_data = {
+            'metric': metric_labels,
+            'whisperpipe_value': wp_values,
+            'baseline_value': bl_values,
+            'improvement_percent': improvement_values
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_16_multimetric_improvement_heatmap_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         filename = self.plots_dir / 'plot_16_multimetric_improvement_heatmap'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1748,12 +1952,23 @@ class PlotGenerator:
         main_legend = ax.legend(handles=[ax.collections[0], ax.collections[1]], labels=['whisperpipe', 'Baseline'], title='System', loc='lower right', frameon=True)
 
         plt.tight_layout()
-        
+
+        # Save plot data to CSV
+        csv_data = {
+            'system': ['whisperpipe', 'baseline'],
+            'rei': [wp_rei, bl_rei],
+            'computational_intensity': [wp_ci, bl_ci],
+            'stability': [wp_stability, bl_stability]
+        }
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_17_efficiency_profile_bubble_chart_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_17_efficiency_profile_bubble_chart'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
@@ -1867,12 +2082,25 @@ class PlotGenerator:
         
         plt.tight_layout()
         plt.subplots_adjust(top=0.93)
-        
+
+        # Save plot data to CSV
+        csv_data = []
+        for name, wp_val, bl_val, imp in metrics:
+            csv_data.append({
+                'metric': name,
+                'whisperpipe_value': wp_val,
+                'baseline_value': bl_val,
+                'improvement_percent': imp
+            })
+        df = pd.DataFrame(csv_data)
+        csv_filename = self.plots_dir / 'plot_18_comparative_metrics_dashboard_data.csv'
+        df.to_csv(csv_filename, index=False)
+
         # Save plot
         filename = self.plots_dir / 'plot_18_comparative_metrics_dashboard'
         for fmt in self.config['plots']['format']:
             plt.savefig(f"{filename}.{fmt}", format=fmt, bbox_inches='tight', dpi=self.config['plots']['dpi'])
-        
+
         plt.close()
         return str(filename)
     
