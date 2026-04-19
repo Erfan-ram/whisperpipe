@@ -188,3 +188,26 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## Support
 
 For issues and questions, please use the [GitHub Issues](https://github.com/Erfan-ram/whisperpipe/issues) page.
+
+## Citation
+
+If you use **whisperpipe** in your research, please cite both our paper and the software repository.
+
+**Paper (arXiv):**
+> *The arXiv preprint link will be available here shortly. Once published, the formal BibTeX will be updated.*
+
+**Software / Codebase (Zenodo):**
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19646625.svg)](https://doi.org/10.5281/zenodo.19646625)
+
+```bibtex
+**Software / Codebase (Zenodo):**
+```bibtex
+@software{whisperpipe_code_2026,
+  author       = {Erfan Ramezani and Mohammad Mahdi Giahi},
+  title        = {WhisperPipe: Source Code and Implementation},
+  month        = apr,
+  year         = 2026,
+  publisher    = {Zenodo},
+  doi          = {10.5281/zenodo.19646625},
+  url          = {[https://doi.org/10.5281/zenodo.19646625](https://doi.org/10.5281/zenodo.19646625)}
+}
