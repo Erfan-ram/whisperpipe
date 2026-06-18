@@ -164,13 +164,13 @@ def test_device_management():
 def test_constructor_parameters():
     """Test that constructor parameters are properly stored"""
     transcriber = MockPipeStream(
-        model_name="tiny.en",
+        model_name="tiny",
         language="fr", 
         finalization_delay=5.0,
         processing_interval=2.0
     )
     
-    assert transcriber.model_name == "tiny.en"
+    assert transcriber.model_name == "tiny"
     assert transcriber.language == "fr"
     assert transcriber.finalization_delay == 5.0
     assert transcriber.processing_interval == 2.0

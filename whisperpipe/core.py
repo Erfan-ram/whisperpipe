@@ -35,7 +35,7 @@ class pipeStream:
         Initialize the transcriber with OpenAI Whisper model
         
         Args:
-            model_name: Whisper model name (tiny, base, small, medium, large, base, small.en)
+            model_name: Whisper model name (tiny, base, small, medium, large)
             language: Language code for transcription (e.g., "en", "es", "fr")
             finalization_delay: Wait time in seconds before finalizing transcription (default 10.0)
             processing_interval: Interval in seconds between processing cycles (default 1.0)
@@ -1539,15 +1539,7 @@ class pipeStream:
             self.process_thread.daemon = True
             self.process_thread.start()
             
-            print("Listening with Fixed Dual Buffer System...")
-            self._debug_print("- Text-only stable buffer (no audio buffer)")
-            self._debug_print("- Simplified timer based ONLY on stable buffer updates")
-            self._debug_print("- Timer RESETS when new content is committed to stable buffer")
-            self._debug_print("- FIXED: Stable buffer preserved during noise rejections")
-            self._debug_print("- Intelligent pattern detection with 3-way confirmation")
-            self._debug_print("- Prevents exponential reprocessing")
-            self._debug_print("- Foreign language detection and reset")
-            self._debug_print("- LLM sending only when 10s passed since last stable buffer update")
+            print("Listening...")
             return True
         except Exception as e:
             print(f"Error starting processing thread: {e}")
