@@ -5,9 +5,12 @@
 [![PyPI version](https://img.shields.io/pypi/v/whisperpipe)](https://pypi.org/project/whisperpipe/)
 [![Python](https://img.shields.io/pypi/pyversions/whisperpipe)](https://pypi.org/project/whisperpipe/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![arXiv](https://img.shields.io/badge/arXiv-2604.25611-b31b1b.svg)](https://arxiv.org/abs/2604.25611)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19646625.svg)](https://doi.org/10.5281/zenodo.19646625)
 
 **whisperpipe** lets you stream microphone audio directly into OpenAI's Whisper model — locally, privately, and for free. No API keys, no internet, no subscriptions.
+
+> 📖 **Academic Backing:** This repository contains the official implementation of our paper, [**WhisperPipe: A Resource-Efficient Streaming Architecture for Real-Time Automatic Speech Recognition**](https://arxiv.org/abs/2604.25611). If you use **whisperpipe** in your research, please cite our paper as described in the [Citation](#citation) section.
 
 ---
 
@@ -204,7 +207,24 @@ Pull requests are welcome. For major changes, please open an issue first.
 
 ## Citation
 
-If you use **whisperpipe** in your research, please cite:
+We can share academic knowledge this way :
+
+```bibtex
+@misc{ramezani2026whisperpipe,
+  title         = {WhisperPipe: A Resource-Efficient Streaming Architecture for Real-Time Automatic Speech Recognition},
+  author        = {Erfan Ramezani and Mohammad Mahdi Giahi and Mohammad Erfan Zarabadipour and Amir Reza Yosefian and Hamid Ghadiri},
+  year          = {2026},
+  month         = apr,
+  publisher     = {arXiv},
+  eprint        = {2604.25611},
+  archivePrefix = {arXiv},
+  primaryClass  = {cs.CL},
+  doi           = {10.48550/arXiv.2604.25611},
+  url           = {https://doi.org/10.48550/arXiv.2604.25611}
+}
+```
+
+And the software repository:
 
 ```bibtex
 @software{whisperpipe_code_2026,

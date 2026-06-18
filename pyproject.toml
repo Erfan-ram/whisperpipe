@@ -1,6 +1,6 @@
 [project]
 name = "whisperpipe"
-version = "0.1.1"
+version = "0.1.2"
 description = "Real-time speech-to-text streaming with OpenAI Whisper"
 authors = [
     {name = "Erfan Ramezani", email = "erfanramezany245@gmail.com"}
