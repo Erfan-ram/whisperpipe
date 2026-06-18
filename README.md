@@ -1,206 +1,211 @@
 # whisperpipe
 
-Real-time speech-to-text streaming with OpenAI Whisper
+> Real-time, offline speech-to-text streaming powered by OpenAI Whisper
 
-## Description
+[![PyPI version](https://img.shields.io/pypi/v/whisperpipe)](https://pypi.org/project/whisperpipe/)
+[![Python](https://img.shields.io/pypi/pyversions/whisperpipe)](https://pypi.org/project/whisperpipe/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19646625.svg)](https://doi.org/10.5281/zenodo.19646625)
 
-whisperpipe is a powerful, easy-to-use Python package for real-time, offline audio transcription using OpenAI's Whisper model. It runs locally, making it a free and private solution for continuous speech-to-text applications. It provides seamless integration with callback functions for LLM processing and supports pause/resume functionality for interactive applications.
+**whisperpipe** lets you stream microphone audio directly into OpenAI's Whisper model — locally, privately, and for free. No API keys, no internet, no subscriptions.
+
+---
 
 ## Why whisperpipe?
 
-In a world where most ASR (Automatic Speech Recognition) services are cloud-based, whisperpipe offers a refreshing alternative by harnessing the power of OpenAI's Whisper model to run directly on your local machine. This approach provides several key advantages:
+| | Cloud ASR | whisperpipe |
+|---|---|---|
+| Privacy | Data sent to servers | 100% local |
+| Cost | Pay-per-use | Free |
+| Offline | No | Yes |
+| Latency | Network dependent | Local only |
 
-- **Complete Privacy**: Since all transcription is done locally, your voice data never leaves your computer. This is crucial for applications that handle sensitive or private conversations.
-- **Zero Cost**: Say goodbye to recurring subscription fees and per-minute charges. whisperpipe is free to use, making it an economical choice for both hobbyists and commercial projects.
-- **No Internet Required**: Whether you're on a plane, in a remote location, or simply have an unstable internet connection, whisperpipe works flawlessly offline.
-- **Real-time Performance**: Designed for continuous, real-time transcription, whisperpipe is ideal for live applications such as voice-controlled assistants, dictation software, and more.
-- **Unleash the Power of Whisper**: By running the Whisper model locally, you have full control over the transcription process, from model selection to performance tuning.
-
-whisperpipe empowers you to build powerful, private, and cost-effective voice applications with ease.
+---
 
 ## Features
 
-- **Real-time audio transcription** using OpenAI Whisper
-- **Callback system** for custom processing (LLM integration, etc.)
-- **Pause/Resume functionality** for interactive applications
-- **Multiple language support**
-- **Configurable processing parameters**
-- **Thread-safe operation**
-- **Easy installation and usage**
+- **Real-time transcription** — continuous audio capture and live text output
+- **Callback system** — hook any function to receive transcribed text (LLM, logging, UI, etc.)
+- **Pause / Resume** — stop listening while your assistant responds, resume on demand
+- **Multi-language** — any language supported by Whisper
+- **Device selection** — choose which microphone to use
+- **Thread-safe** — designed for concurrent use
+- **CUDA support** — automatically uses GPU if available
+
+---
 
 ## Installation
-
-### From PyPI
 
 ```bash
 pip install whisperpipe
 ```
 
-### From GitHub
+Or for the latest version directly from GitHub:
 
 ```bash
 pip install git+https://github.com/Erfan-ram/whisperpipe.git
 ```
 
+> **System dependencies:** PyAudio requires PortAudio. On Linux: `sudo apt install portaudio19-dev`, on macOS: `brew install portaudio`.
+
+---
+
 ## Quick Start
-
-```python
-from whisperpipe import pipeStream
-
-# Basic usage
-transcriber = pipeStream(
-    model_name="base",
-    language="en",
-    finalization_delay=10.0,
-    processing_interval=1.0
-)
-
-# Start streaming
-transcriber.start_streaming()
-```
-
-## Usage Examples
-
-### Basic Transcription
-
-```python
-from whisperpipe import pipeStream
-
-# Create transcriber instance
-transcriber = pipeStream(
-    model_name="base",
-    language="en",
-    finalization_delay=10.0,
-    processing_interval=1.0
-)
-
-# Start transcription
-transcriber.start_streaming()
-
-# The transcribed text will be printed to console
-# Press Ctrl+C to stop
-```
-
-### With Custom Callback (LLM Integration)
-
-```python
-from whisperpipe import pipeStream
-
-def llm_processor(text):
-    """Custom function to process transcribed text"""
-    print(f"Processing: {text}")
-    # Your LLM integration here
-    # e.g., send to OpenAI, Claude, local model, etc.
-    response = your_llm_api.chat(text)
-    print(f"Response: {response}")
-    return response
-
-# Create transcriber with callback
-transcriber = pipeStream(
-    model_name="base",
-    language="en",
-    finalization_delay=10.0,
-    processing_interval=1.0
-)
-
-# Register callback
-transcriber.set_def_callback(llm_processor)
-
-# Start streaming with LLM integration
-transcriber.start_streaming()
-```
-
-### Interactive Mode with Pause/Resume
 
 ```python
 from whisperpipe import pipeStream
 import time
 
-def interactive_processor(text):
-    """Process text and pause for response"""
-    # Pause transcriber while processing
-    transcriber.pause_streaming()
-    
-    print(f"User said: {text}")
-    
-    # Process with your system
-    response = process_with_llm(text)
-    
-    # Speak or display response
-    print(f"Assistant: {response}")
-    
-    # Resume for next input
-    transcriber.resume_streaming()
-
-transcriber = pipeStream()
-transcriber.set_def_callback(interactive_processor)
+transcriber = pipeStream(model_name="base", language="en")
 transcriber.start_streaming()
+
+print("Listening... Press Ctrl+C to stop")
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    transcriber.stop_streaming()
 ```
+
+---
+
+## Usage Examples
+
+### With a Callback (LLM Integration)
+
+Register any function to be called each time a sentence is finalized:
+
+```python
+from whisperpipe import pipeStream
+import time
+
+def my_callback(text):
+    print(f"Transcribed: {text}")
+    # Send to your LLM, log it, update UI, etc.
+
+transcriber = pipeStream(model_name="base", language="en")
+transcriber.set_def_callback(my_callback)
+transcriber.start_streaming()
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    transcriber.stop_streaming()
+```
+
+### Turn-based Conversation (Pause / Resume)
+
+Pause listening while your assistant is speaking, then resume:
+
+```python
+from whisperpipe import pipeStream
+import time
+
+transcriber = pipeStream(model_name="base", language="en")
+
+def on_speech(text):
+    transcriber.pause_streaming()          # Stop listening
+    print(f"User: {text}")
+
+    response = f"You said: {text}"         # Replace with your LLM call
+    print(f"Assistant: {response}")
+
+    transcriber.resume_streaming()         # Start listening again
+
+transcriber.set_def_callback(on_speech)
+transcriber.start_streaming()
+
+try:
+    while True:
+        time.sleep(1)
+except KeyboardInterrupt:
+    transcriber.stop_streaming()
+```
+
+> For more complete examples including manual control and status checking, see [example_usage.py](example_usage.py).
+
+---
+
+## Model Selection
+
+| Model | Size | Speed | Accuracy | Recommended for |
+|-------|------|-------|----------|-----------------|
+| `tiny` | 75 MB | Fastest | Low | Testing, prototyping |
+| `base` | 145 MB | Fast | Good | General use |
+| `small` | 466 MB | Medium | Better | Balanced performance |
+| `medium` | 1.5 GB | Slow | High | High accuracy needed |
+| `large` | 3 GB | Slowest | Best | Maximum accuracy |
+
+---
 
 ## API Reference
 
-### Constructor Parameters
+### `pipeStream()`
 
-- `model_name` (str): Whisper model name ("tiny", "base", "small", "medium", "large"). Default: "base"
-- `language` (str): Language code for transcription ("en", "es", "fr", etc.). Default: "en"
-- `finalization_delay` (float): Wait time in seconds before finalizing transcription. Default: 10.0
-- `processing_interval` (float): Interval in seconds between processing cycles. Default: 1.0
-- `buffer_duration_seconds` (float): Time window in seconds to hold audio for processing. Default: 5.0
-- `debug_mode` (bool): Enable debug mode for detailed logging. Default: True
+```python
+pipeStream(
+    model_name="base",
+    language="en",
+    finalization_delay=10.0,
+    processing_interval=1.0,
+    buffer_duration_seconds=5.0,
+    debug_mode=False
+)
+```
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model_name` | str | `"base"` | Whisper model to load |
+| `language` | str | `"en"` | Language code (`"en"`, `"fa"`, `"es"`, ...) |
+| `finalization_delay` | float | `10.0` | Seconds of silence before finalizing a sentence |
+| `processing_interval` | float | `1.0` | How often (seconds) to process buffered audio |
+| `buffer_duration_seconds` | float | `5.0` | Audio buffer size in seconds |
+| `debug_mode` | bool | `False` | Print internal debug logs |
 
 ### Methods
 
-#### Core Methods
-- `start_streaming()`: Start audio capture and transcription
-- `stop_streaming()`: Stop audio capture and transcription
+| Method | Description |
+|--------|-------------|
+| `start_streaming()` | Start microphone capture and transcription |
+| `stop_streaming()` | Stop transcription |
+| `set_def_callback(fn)` | Register a callback — called with `(text: str)` on each finalized sentence. Pass `None` to clear. |
+| `pause_streaming()` | Temporarily pause audio processing |
+| `resume_streaming()` | Resume after a pause |
+| `is_running()` | Returns `True` if actively running |
+| `is_paused()` | Returns `True` if currently paused |
+| `input_devices()` | List available microphone devices with their IDs |
 
-#### Callback System
-- `set_def_callback(callback_function)`: Register a callback function for processing transcribed text
-- `set_def_callback(None)`: Clear the callback (use default behavior)
-
-#### Pause/Resume Control
-- `pause_streaming()`: Pause audio processing temporarily
-- `resume_streaming()`: Resume audio processing
-- `is_paused()`: Check if transcriber is paused
-- `is_running()`: Check if transcriber is running
+---
 
 ## Requirements
 
-- Python 3.8+
-- PyAudio
-- OpenAI Whisper
-- PyTorch
-- NumPy
-- pynput
+- Python 3.9 – 3.12
+- `openai-whisper`
+- `pyaudio`
+- `pynput`
+- `sounddevice`
+- NumPy and PyTorch (installed automatically with Whisper)
+
+---
 
 ## License
 
-MIT License
+MIT — see [LICENSE](LICENSE)
 
-## Author
+## Authors
 
-Erfan Ramezani - erfanramezany245@gmail.com
+**Erfan Ramezani** · erfanramezany245@gmail.com  
+**Mohammad Mahdi Giahi**
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Support
-
-For issues and questions, please use the [GitHub Issues](https://github.com/Erfan-ram/whisperpipe/issues) page.
+Pull requests are welcome. For major changes, please open an issue first.
 
 ## Citation
 
-If you use **whisperpipe** in your research, please cite both our paper and the software repository.
+If you use **whisperpipe** in your research, please cite:
 
-**Paper (arXiv):**
-> *The arXiv preprint link will be available here shortly. Once published, the formal BibTeX will be updated.*
-
-**Software / Codebase (Zenodo):**
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19646625.svg)](https://doi.org/10.5281/zenodo.19646625)
-
-```bibtex
-**Software / Codebase (Zenodo):**
 ```bibtex
 @software{whisperpipe_code_2026,
   author       = {Erfan Ramezani and Mohammad Mahdi Giahi},
@@ -209,5 +214,6 @@ If you use **whisperpipe** in your research, please cite both our paper and the 
   year         = 2026,
   publisher    = {Zenodo},
   doi          = {10.5281/zenodo.19646625},
-  url          = {[https://doi.org/10.5281/zenodo.19646625](https://doi.org/10.5281/zenodo.19646625)}
+  url          = {https://doi.org/10.5281/zenodo.19646625}
 }
+```
