@@ -23,7 +23,7 @@ def test_constructor_signature():
         params = list(sig.parameters.keys())
         
         # Required parameters for the API
-        required_params = ['self', 'model_name', 'language', 'finalization_delay', 'processing_interval']
+        required_params = ['self', 'model', 'language', 'finalization_delay', 'processing_interval']
         
         for param in required_params:
             assert param in params, f"Missing required parameter: {param}"
@@ -55,13 +55,13 @@ def test_api_compatibility():
         
         # Test that we can instantiate with the requested API call
         sig = inspect.signature(pipeStream.__init__)
-        call_params = ['model_name', 'language', 'finalization_delay', 'processing_interval']
+        call_params = ['model', 'language', 'finalization_delay', 'processing_interval']
         
         for param in call_params:
             assert param in sig.parameters, f"API incompatible: missing {param}"
             
         # Verify the signature is compatible with:
-        # pipeStream(model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0)
+        # pipeStream(model="base", language="en", finalization_delay=10.0, processing_interval=1.0)
         
     except ImportError:
         pytest.skip("Import failed (may be expected in test environment)")

@@ -56,7 +56,7 @@ pip install git+https://github.com/Erfan-ram/whisperpipe.git
 from whisperpipe import pipeStream
 import time
 
-transcriber = pipeStream(model_name="base", language="en")
+transcriber = pipeStream(model="base", language="en")
 transcriber.start_streaming()
 
 print("Listening... Press Ctrl+C to stop")
@@ -83,7 +83,7 @@ def my_callback(text):
     print(f"Transcribed: {text}")
     # Send to your LLM, log it, update UI, etc.
 
-transcriber = pipeStream(model_name="base", language="en")
+transcriber = pipeStream(model="base", language="en")
 transcriber.set_def_callback(my_callback)
 transcriber.start_streaming()
 
@@ -102,7 +102,7 @@ Pause listening while your assistant is speaking, then resume:
 from whisperpipe import pipeStream
 import time
 
-transcriber = pipeStream(model_name="base", language="en")
+transcriber = pipeStream(model="base", language="en")
 
 def on_speech(text):
     transcriber.pause_streaming()          # Stop listening
@@ -145,7 +145,7 @@ except KeyboardInterrupt:
 
 ```python
 pipeStream(
-    model_name="base",
+    model="base",
     language="en",
     finalization_delay=10.0,
     processing_interval=1.0,
@@ -156,7 +156,7 @@ pipeStream(
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `model_name` | str | `"base"` | Whisper model to load |
+| `model` | str | `"base"` | Whisper model to load |
 | `language` | str | `"en"` | Language code (`"en"`, `"fa"`, `"es"`, ...) |
 | `finalization_delay` | float | `10.0` | Seconds of silence before finalizing a sentence |
 | `processing_interval` | float | `1.0` | How often (seconds) to process buffered audio |

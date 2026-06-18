@@ -9,8 +9,8 @@ import time
 class MockPipeStream:
     """Mock pipeStream class for testing functionality without dependencies"""
     
-    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0):
-        self.model_name = model_name
+    def __init__(self, model="base", language="en", finalization_delay=10.0, processing_interval=1.0):
+        self.model = model
         self.language = language
         self.finalization_delay = finalization_delay
         self.processing_interval = processing_interval
@@ -164,13 +164,13 @@ def test_device_management():
 def test_constructor_parameters():
     """Test that constructor parameters are properly stored"""
     transcriber = MockPipeStream(
-        model_name="tiny",
+        model="tiny",
         language="fr", 
         finalization_delay=5.0,
         processing_interval=2.0
     )
     
-    assert transcriber.model_name == "tiny"
+    assert transcriber.model == "tiny"
     assert transcriber.language == "fr"
     assert transcriber.finalization_delay == 5.0
     assert transcriber.processing_interval == 2.0

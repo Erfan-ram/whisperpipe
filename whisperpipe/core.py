@@ -30,12 +30,12 @@ except (ImportError, OSError) as e:
     print("[INFO] Audio device management will use PyAudio fallback")
 
 class pipeStream:
-    def __init__(self, model_name="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=False):
+    def __init__(self, model="base", language="en", finalization_delay=10.0, processing_interval=1.0, buffer_duration_seconds=5.0, debug_mode=False):
         """
         Initialize the transcriber with OpenAI Whisper model
         
         Args:
-            model_name: Whisper model name (tiny, base, small, medium, large)
+            model: Whisper model name (tiny, base, small, medium, large)
             language: Language code for transcription (e.g., "en", "es", "fr")
             finalization_delay: Wait time in seconds before finalizing transcription (default 10.0)
             processing_interval: Interval in seconds between processing cycles (default 1.0)
@@ -44,11 +44,11 @@ class pipeStream:
         """
         self._debug_mode_enabled = debug_mode
         self.language = language  # Store language for Whisper transcription
-        print(f"Loading Whisper model: {model_name}")
+        print(f"Loading Whisper model: {model}")
         
         try:
             # Initialize the OpenAI Whisper model
-            self.model = whisper.load_model(model_name)
+            self.model = whisper.load_model(model)
             print("Model loaded successfully!")
             
             # Check if CUDA is available

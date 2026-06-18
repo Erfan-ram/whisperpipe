@@ -92,7 +92,7 @@ def example_real_time_mode():
     # Create transcriber
     try:
         transcriber = pipeStream(
-            model_name="base",
+            model="base",
             language="en",
             finalization_delay=10.0,
             processing_interval=1.0
@@ -175,7 +175,7 @@ def example_llm_input_mode():
     # Create transcriber
     try:
         transcriber = pipeStream(
-            model_name="base",
+            model="base",
             language="en",
             finalization_delay=10.0,
             processing_interval=1.0
@@ -232,7 +232,7 @@ def example_manual_control():
     
     try:
         transcriber = pipeStream(
-            model_name="base",
+            model="base",
             language="en",
             finalization_delay=10.0,
             processing_interval=1.0
