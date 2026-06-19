@@ -6,22 +6,16 @@
 [![Python](https://img.shields.io/pypi/pyversions/whisperpipe)](https://pypi.org/project/whisperpipe/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![arXiv](https://img.shields.io/badge/arXiv-2604.25611-b31b1b.svg)](https://arxiv.org/abs/2604.25611)
-[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19646625.svg)](https://doi.org/10.5281/zenodo.19646625)
 
-**whisperpipe** lets you stream microphone audio directly into OpenAI's Whisper model — locally, privately, and for free. No API keys, no internet, no subscriptions.
+**whisperpipe** is a Python library that turns your microphone into a real-time transcription pipeline powered by OpenAI's Whisper model — running entirely on your own machine. No API keys, no cloud services, no subscriptions, and no data ever leaves your device.
+
+whisperpipe uses a dual-buffer architecture with a hybrid Voice Activity Detection (VAD) pipeline to minimize unnecessary inference and keep latency low. It is designed to plug directly into conversational AI systems and any other application that requires real-time speech-to-text: register a callback, start streaming, and every finalized sentence is delivered to your function automatically. Pause and resume control makes it easy to build turn-based interactions where the assistant stops listening while it responds, then picks up exactly where it left off.
 
 > 📖 **Academic Backing:** This repository contains the official implementation of our paper, [**WhisperPipe: A Resource-Efficient Streaming Architecture for Real-Time Automatic Speech Recognition**](https://arxiv.org/abs/2604.25611). If you use **whisperpipe** in your research, please cite our paper as described in the [Citation](#citation) section.
 
----
-
-## Why whisperpipe?
-
-| | Cloud ASR | whisperpipe |
-|---|---|---|
-| Privacy | Data sent to servers | 100% local |
-| Cost | Pay-per-use | Free |
-| Offline | No | Yes |
-| Latency | Network dependent | Local only |
+<div align="center">
+  <img src="https://github.com/user-attachments/assets/4959804d-da10-4d75-bc06-1ce7e88cd111" alt="whisperpipe architecture" width="70%" />
+</div>
 
 ---
 
@@ -198,8 +192,8 @@ MIT — see [LICENSE](LICENSE)
 
 ## Authors
 
-**Erfan Ramezani** · erfanramezany245@gmail.com  
-**Mohammad Mahdi Giahi**
+[**Erfan Ramezani**](mailto:erfanramezany245@gmail.com)  
+[**Mohammad Mahdi Giahi**](mailto:giahimahdi@gmail.com)
 
 ## Contributing
 
@@ -207,7 +201,7 @@ Pull requests are welcome. For major changes, please open an issue first.
 
 ## Citation
 
-We can share academic knowledge this way :
+If you find this project useful for your research, please consider citing:
 
 ```bibtex
 @misc{ramezani2026whisperpipe,
